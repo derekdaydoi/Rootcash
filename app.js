@@ -44,6 +44,24 @@
     return String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
   }
 
+  function blankAllocations() {
+    return Object.fromEntries(CATEGORIES.map(category => [category.name, 0]));
+  }
+
+  function emptyState() {
+    return {
+      schemaVersion: 1,
+      transactions: [],
+      plan: {
+        month: nextMonthKey,
+        incomes: [],
+        expenses: [],
+        allocations: blankAllocations(),
+      },
+      settings: { safetyRate: 10 },
+    };
+  }
+
   function defaultState() {
     const tx = [
       { id: uid('tx'), type:'income', label:'Lương & thu nhập', amount:27500000, date:dateInMonth(currentMonthKey, 9), category:'Thu nhập' },
@@ -92,7 +110,7 @@
     raw.plan.month = raw.plan.month || nextMonthKey;
     raw.plan.incomes = Array.isArray(raw.plan.incomes) ? raw.plan.incomes : [];
     raw.plan.expenses = Array.isArray(raw.plan.expenses) ? raw.plan.expenses : [];
-    raw.plan.allocations = raw.plan.allocations || {};
+    raw.plan.allocations = { ...blankAllocations(), ...(raw.plan.allocations || {}) };
     raw.settings = { safetyRate: 10, ...(raw.settings || {}) };
     return raw;
   }
@@ -160,7 +178,7 @@
     }).join('');
     return `<section class="screen">
       <header class="topbar">
-        <div class="brand-lockup"><img class="brand-mark" src="assets/logo-mark.svg" alt=""><div class="brand-copy"><h1>Rootcash</h1><p>Chủ động tiền bạc, vững vàng tháng sau</p></div></div>
+        <div class="brand-lockup"><img class="brand-mark" src="assets/logo-mark.svg?v=2" alt=""><div class="brand-copy"><h1>Rootcash</h1><p>Chủ động tiền bạc, vững vàng tháng sau</p></div></div>
         <button class="icon-btn" data-settings aria-label="Cài đặt">${icon('gear')}</button>
       </header>
       <div class="card hero">
@@ -239,10 +257,11 @@
     const screens = { home:homeScreen, cashflow:cashflowScreen, capital:capitalScreen, plan:planScreen, allocation:allocationScreen };
     $app.innerHTML = (screens[view] || homeScreen)();
     bindUi();
+    guardScrollEdges($app.querySelector('.screen'));
   }
 
   function bindUi() {
-    $app.querySelectorAll('[data-nav]').forEach(btn=>btn.addEventListener('click',()=>{ view=btn.dataset.nav; render(); window.scrollTo({top:0,behavior:'smooth'}); }));
+    $app.querySelectorAll('[data-nav]').forEach(btn=>btn.addEventListener('click',()=>{ view=btn.dataset.nav; render(); }));
     $app.querySelectorAll('[data-add]').forEach(btn=>btn.addEventListener('click',()=>openEditor(btn.dataset.add)));
     $app.querySelectorAll('[data-settings]').forEach(btn=>btn.addEventListener('click',openSettings));
     $app.querySelectorAll('[data-edit-actual]').forEach(btn=>btn.addEventListener('click',()=>openEditor('actual', btn.dataset.editActual)));
@@ -253,6 +272,35 @@
       render();
     }));
     $app.querySelectorAll('[data-save-plan]').forEach(btn=>btn.addEventListener('click',()=>{ saveState('Đã lưu kế hoạch tháng sau'); view='plan'; render(); }));
+  }
+
+  function guardScrollEdges(scroller) {
+    if (!scroller) return;
+    let startY = 0;
+    scroller.addEventListener('touchstart', event => {
+      if (event.touches.length !== 1) return;
+      startY = event.touches[0].clientY;
+    }, { passive: true });
+    scroller.addEventListener('touchmove', event => {
+      if (event.touches.length !== 1) return;
+      if (event.target.closest('input[type="range"]')) return;
+      const currentY = event.touches[0].clientY;
+      const delta = currentY - startY;
+      const atTop = scroller.scrollTop <= 0;
+      const atBottom = Math.ceil(scroller.scrollTop + scroller.clientHeight) >= scroller.scrollHeight;
+      if ((atTop && delta > 0) || (atBottom && delta < 0)) event.preventDefault();
+      startY = currentY;
+    }, { passive: false });
+  }
+
+  function installViewportGuards() {
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(name => {
+      document.addEventListener(name, event => event.preventDefault(), { passive: false });
+    });
+    document.addEventListener('touchmove', event => {
+      if (event.touches && event.touches.length > 1) event.preventDefault();
+    }, { passive: false });
+    document.addEventListener('dblclick', event => event.preventDefault(), { passive: false });
   }
 
   function openEditor(mode='actual', editId=null) {
@@ -273,7 +321,7 @@
         <div class="field"><label>Số tiền</label><input name="amount" type="number" min="0" step="1000" inputmode="numeric" required value="${item?.amount||''}" placeholder="0"></div>
         <div class="field"><label>${isPlanIncome?'Ngày nhận':'Ngày'}</label><input name="date" type="date" required value="${defaultDate}"></div>
         ${(!isPlanIncome)?`<div class="field full"><label>Danh mục</label><select name="category">${CATEGORIES.map(c=>`<option ${defaultCategory===c.name?'selected':''}>${c.name}</option>`).join('')}</select></div>`:''}</div>
-        <div class="sheet-actions">${editId?'<button type="button" class="btn danger" data-delete>Delete</button>':'<button type="button" class="btn" data-close-sheet>Huỷ</button>'}<button class="btn primary" type="submit">${editId?'Lưu thay đổi':'Thêm'}</button></div>
+        <div class="sheet-actions">${editId?'<button type="button" class="btn danger" data-delete>Xóa mục này</button>':'<button type="button" class="btn" data-close-sheet>Huỷ</button>'}<button class="btn primary" type="submit">${editId?'Lưu thay đổi':'Thêm'}</button></div>
       </form></section></div>`;
     bindSheet();
   }
@@ -312,19 +360,24 @@
   function upsert(list,item) {
     const idx=list.findIndex(x=>x.id===item.id); if(idx>=0) list[idx]=item; else list.push(item);
   }
+
   function deleteCurrent() {
-    const {mode,editId}=sheetContext; if(!editId)return;
+    const {mode,editId}=sheetContext;
+    if(!editId) return;
+    if (!confirm('Xóa mục này? Hành động này không thể hoàn tác.')) return;
     if(mode==='actual') state.transactions=state.transactions.filter(x=>x.id!==editId);
     else if(mode==='plan-income') state.plan.incomes=state.plan.incomes.filter(x=>x.id!==editId);
     else state.plan.expenses=state.plan.expenses.filter(x=>x.id!==editId);
-    saveState('Đã xoá'); closeSheet(); render();
+    saveState('Đã xóa mục'); closeSheet(); render();
   }
   function closeSheet(){ $sheetRoot.innerHTML=''; }
 
   function openSettings() {
     $sheetRoot.innerHTML = `<div class="sheet-backdrop"><section class="sheet" role="dialog" aria-modal="true"><div class="sheet__grab"></div><div class="sheet__head"><h2>Cài đặt</h2><button class="sheet__close" data-close-sheet>×</button></div>
       <div class="settings-group"><div class="settings-line"><label><span>Biên an toàn buffer</span><output id="safety-output">${state.settings.safetyRate}%</output></label><input id="safety-range" type="range" min="0" max="30" step="1" value="${state.settings.safetyRate}"></div>
-      <button class="btn" id="export-btn">Xuất backup JSON</button><label class="btn" style="display:grid;place-items:center"><input id="import-input" type="file" accept="application/json" hidden>Nhập backup JSON</label><button class="btn danger" id="reset-btn">Khôi phục dữ liệu mẫu</button></div>
+      <button class="btn" id="export-btn">Xuất backup JSON</button><label class="btn" style="display:grid;place-items:center"><input id="import-input" type="file" accept="application/json" hidden>Nhập backup JSON</label>
+      <button class="btn" id="reset-btn">Khôi phục dữ liệu mẫu</button>
+      <div class="settings-danger"><p>Xóa toàn bộ giao dịch, kế hoạch và phân bổ đang lưu trên thiết bị này.</p><button class="btn danger-strong" id="clear-btn">Xóa toàn bộ dữ liệu</button></div></div>
       <div class="about">Rootcash · local-first<br>© 2026 Rootcash</div></section></div>`;
     const sheet=$sheetRoot.querySelector('.sheet-backdrop'); sheet.addEventListener('click',e=>{if(e.target===sheet)closeSheet();});
     $sheetRoot.querySelector('[data-close-sheet]').addEventListener('click',closeSheet);
@@ -332,6 +385,19 @@
     $sheetRoot.querySelector('#export-btn').addEventListener('click',exportBackup);
     $sheetRoot.querySelector('#import-input').addEventListener('change',importBackup);
     $sheetRoot.querySelector('#reset-btn').addEventListener('click',()=>{if(confirm('Khôi phục dữ liệu mẫu? Dữ liệu hiện tại sẽ bị thay thế.')){state=defaultState();saveState('Đã khôi phục dữ liệu mẫu');closeSheet();render();}});
+    $sheetRoot.querySelector('#clear-btn').addEventListener('click',clearAllData);
+  }
+
+  function clearAllData() {
+    const first = confirm('Xóa toàn bộ dữ liệu Rootcash trên thiết bị này?');
+    if (!first) return;
+    const second = confirm('Xác nhận lần cuối: toàn bộ giao dịch, kế hoạch và phân bổ sẽ bị xóa và không thể hoàn tác.');
+    if (!second) return;
+    state = emptyState();
+    saveState('Đã xóa toàn bộ dữ liệu');
+    closeSheet();
+    view = 'home';
+    render();
   }
 
   function exportBackup(){
@@ -349,6 +415,7 @@
     setTimeout(()=>splash.classList.add('hidden'),delay);
   }
 
+  installViewportGuards();
   if ('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   render(); startSplash();
 })();
