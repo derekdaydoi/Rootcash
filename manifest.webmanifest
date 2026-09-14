@@ -1,0 +1,16 @@
+{
+  "name": "Rootcash",
+  "short_name": "Rootcash",
+  "description": "Lập kế hoạch thu chi tháng sau, tính buffer và phân bổ ngân sách cá nhân.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FDF9F1",
+  "theme_color": "#FDF9F1",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
