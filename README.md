@@ -1,16 +1,15 @@
 # Rootcash
 
-Rootcash là một PWA local-first để lập kế hoạch tài chính tháng sau theo cách đơn giản:
+Rootcash là một PWA local-first để lập kế hoạch tài chính theo tháng.
 
-- Ngày 20 hàng tháng: nhập thủ công thu nhập dự kiến + ngày nhận.
-- Nhập thủ công các khoản chi dự kiến + ngày phải trả.
-- Rootcash tính **buffer cần giữ** dựa trên khoảng hụt dòng tiền theo ngày + biên an toàn.
-- Phần còn lại được phân bổ vào các danh mục như Ăn uống, Mua sắm, Thể thao, Yêu đương, Giải trí, Khác.
-- Trang Hôm nay tổng kết thu nhập/chi phí thực tế của tháng hiện tại.
+- Ngày 20: nhập thủ công thu nhập dự kiến + ngày nhận.
+- Nhập các khoản chi dự kiến + ngày phải trả.
+- Rootcash tính buffer theo khoảng hụt dòng tiền theo ngày + biên an toàn.
+- Phân bổ phần linh hoạt vào đúng 9 nhóm: Yêu đương, Ăn uống, Thể thao, Xăng xe, Dịch vụ nhà, Mua sắm, AI và học tập, Trading, Invest.
+- Trang Hôm nay tổng kết thu nhập, chi phí và cơ cấu chi tiêu thực tế tháng hiện tại.
+- Dữ liệu lưu local-first; hỗ trợ nhập/xuất JSON, xóa từng mục và xóa toàn bộ dữ liệu.
 
 ## Chạy local
-
-Không cần build step:
 
 ```bash
 python3 -m http.server 8080
@@ -21,21 +20,23 @@ Mở `http://localhost:8080`.
 ## Tests
 
 ```bash
-npm test
+node tests/domain.test.js
 ```
 
 ## Buffer
 
-Rootcash sắp xếp các dòng tiền theo ngày. Nếu thu và chi trùng ngày, nghĩa vụ chi được xét trước để bảo thủ. Công thức:
+Rootcash sắp xếp dòng tiền theo ngày. Nếu thu và chi trùng ngày, nghĩa vụ chi được xét trước để bảo thủ:
 
 `buffer = roundUp(max cumulative deficit + safetyRate × plannedExpense, 500.000đ)`
 
 Mặc định `safetyRate = 10%` và có thể chỉnh trong Cài đặt.
 
-## PWA
+## PWA / Brand
 
-- Accent: `#BAFF9C`
-- Homescreen icon có safe padding riêng.
-- Splash tối giản, không halo/ring.
+- Accent: `#BAFF9C`.
+- Một logo canonical dùng cho splash, header và homescreen icon.
+- Homescreen icon có safe padding riêng cho iOS Add to Home Screen.
+- Splash dùng fade + scale nhẹ, không halo/ring, có `© 2026 Rootcash`.
+- Bottom navigation cố định, tách khỏi vùng scroll.
+- Khóa pinch zoom và overscroll/rubber-band trong app shell.
 - Hỗ trợ `prefers-reduced-motion`.
-- `© 2026 Rootcash`.

@@ -1,0 +1,14 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#BAFF9C"/>
+  <g transform="translate(128 128)">
+    <defs>
+      <linearGradient id="l" x1="42" y1="42" x2="128" y2="128" gradientUnits="userSpaceOnUse"><stop stop-color="#B9F58F"/><stop offset="1" stop-color="#38BE6A"/></linearGradient>
+      <linearGradient id="r" x1="214" y1="42" x2="128" y2="128" gradientUnits="userSpaceOnUse"><stop stop-color="#30C36B"/><stop offset="1" stop-color="#05996A"/></linearGradient>
+    </defs>
+    <path d="M124 105C104 73 77 50 43 43C41 83 57 113 100 124C111 118 119 111 124 105Z" fill="url(#l)"/>
+    <path d="M132 105C152 73 179 50 213 43C215 83 199 113 156 124C145 118 137 111 132 105Z" fill="url(#r)"/>
+    <path d="M67 72C88 76 107 88 123 108M189 72C168 76 149 88 133 108" stroke="#E3FBD8" stroke-width="6" stroke-linecap="round" opacity=".9"/>
+    <path d="M128 103C116 123 113 143 118 160C121 170 121 178 116 186M128 103C140 123 143 143 138 160C135 170 135 178 140 186" stroke="#121D1D" stroke-width="16" stroke-linecap="round"/>
+    <path d="M121 164C108 178 89 179 76 192M135 164C148 178 167 179 180 192M112 181C100 192 95 204 95 216M144 181C156 192 161 204 161 216M128 169V224M118 190C111 201 109 210 109 219M138 190C145 201 147 210 147 219" stroke="#121D1D" stroke-width="12" stroke-linecap="round"/>
+  </g>
+</svg>
