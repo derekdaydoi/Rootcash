@@ -17,20 +17,64 @@
   function updateAllocation(input){S.state.plan.allocations[input.dataset.alloc]=Number(input.value);S.save();const p=S.planning(),row=input.closest('[data-allocation-row]'),amount=Number(input.value||0);row?.querySelector('[data-pct]')?.replaceChildren(document.createTextNode(`${p.flexible?Math.round(amount/p.flexible*100):0}%`));row?.querySelector('[data-amount]')?.replaceChildren(document.createTextNode(C.fmtMoney(amount)));const total=D.allocationTotal(S.state.plan.allocations),sum=$app.querySelector('[data-alloc-summary]');if(sum){sum.classList.toggle('over',total>p.flexible);sum.querySelector('strong').textContent=`${C.fmtMoney(total)} / ${C.fmtMoney(p.flexible)}`;}}
   function guard(scroller){if(!scroller)return;let y=0;scroller.addEventListener('touchstart',e=>{if(e.touches.length===1)y=e.touches[0].clientY;},{passive:true});scroller.addEventListener('touchmove',e=>{if(e.touches.length!==1||e.target.closest('input[type="range"]'))return;const n=e.touches[0].clientY,d=n-y,top=scroller.scrollTop<=0,bottom=Math.ceil(scroller.scrollTop+scroller.clientHeight)>=scroller.scrollHeight;if((top&&d>0)||(bottom&&d<0))e.preventDefault();y=n;},{passive:false});}
   function installGuards(){['gesturestart','gesturechange','gestureend'].forEach(n=>document.addEventListener(n,e=>e.preventDefault(),{passive:false}));document.addEventListener('touchmove',e=>{if(e.touches?.length>1)e.preventDefault();},{passive:false});let last=0;document.addEventListener('touchend',e=>{const t=Date.now();if(t-last<=300)e.preventDefault();last=t;},{passive:false});}
-  function openEditor(mode='actual',editId=null){
-    ctx={mode,editId};const isIncome=mode==='plan-income',list=isIncome?S.state.plan.incomes:S.state.plan.expenses;let item=editId?(mode==='actual'?S.state.transactions.find(x=>x.id===editId):list.find(x=>x.id===editId)):null;const type=item?.type||'expense',date=item?.date||(mode==='actual'?C.dateInMonth(C.currentMonthKey,Math.min(C.now.getDate(),28)):C.dateInMonth(S.state.plan.month,10)),cat=C.categoryNames.has(item?.category)?item.category:'Dịch vụ nhà';
-    $sheet.innerHTML=`<div class="sheet-backdrop"><section class="sheet" role="dialog" aria-modal="true"><div class="sheet__grab"></div><div class="sheet__head"><h2>${editId?'Chỉnh sửa':'Thêm mục'}</h2><button class="sheet__close" data-close aria-label="Đóng">×</button></div>${mode==='actual'?`<div class="segment"><button type="button" data-seg="income" class="${type==='income'?'active':''}">Thu thực tế</button><button type="button" data-seg="expense" class="${type==='expense'?'active':''}">Chi thực tế</button><button type="button" data-seg="plan">Kế hoạch</button></div>`:''}<form id="editor"><input type="hidden" name="type" value="${mode==='actual'?type:(isIncome?'income':'expense')}"><div class="form-grid"><div class="field full"><label>Tên khoản</label><input name="label" required value="${C.escapeHtml(item?.label||'')}" placeholder="VD: Lương chính, tiền nhà"></div><div class="field"><label>Số tiền</label><input name="amount" type="number" min="0" step="1000" inputmode="numeric" required value="${item?.amount||''}" placeholder="0"></div><div class="field"><label>${isIncome?'Ngày nhận':'Ngày'}</label><input name="date" type="date" required value="${date}"></div>${!isIncome?`<div class="field full"><label>Danh mục</label><select name="category">${C.categories.map(c=>`<option ${cat===c.name?'selected':''}>${c.name}</option>`).join('')}</select></div>`:''}</div><div class="sheet-actions">${editId?'<button type="button" class="btn danger" data-delete>Xóa</button>':'<button type="button" class="btn" data-close>Huỷ</button>'}<button class="btn primary" type="submit">${editId?'Lưu':'Thêm'}</button></div></form></section></div>`;bindSheet();
+  const categoryList=type=>type==='income'?C.incomeCategories:C.categories;
+  const validCategory=(type,value)=>type==='income'?C.incomeCategoryNames.has(value):C.categoryNames.has(value);
+  const defaultCategory=type=>type==='income'?'Lương':'Dịch vụ nhà';
+  const categoryOptions=(type,selected)=>categoryList(type).map(c=>`<option value="${C.escapeHtml(c.name)}" ${c.name===selected?'selected':''}>${C.escapeHtml(c.name)}</option>`).join('');
+  function syncCategoryField(type){
+    const wrap=$sheet.querySelector('[data-category-wrap]'),select=wrap?.querySelector('select'),label=wrap?.querySelector('label');
+    if(!wrap||!select||!label)return;
+    const current=select.value,selected=validCategory(type,current)?current:defaultCategory(type);
+    label.textContent=type==='income'?'Nguồn thu':'Danh mục';
+    select.innerHTML=categoryOptions(type,selected);
   }
-  function bindSheet(){const bg=$sheet.querySelector('.sheet-backdrop');bg?.addEventListener('click',e=>{if(e.target===bg)close();});$sheet.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',close));$sheet.querySelectorAll('[data-seg]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.seg==='plan'){close();openEditor('plan-expense');return;}$sheet.querySelectorAll('[data-seg]').forEach(x=>x.classList.toggle('active',x===b));$sheet.querySelector('[name="type"]').value=b.dataset.seg;}));$sheet.querySelector('#editor')?.addEventListener('submit',submit);$sheet.querySelector('[data-delete]')?.addEventListener('click',del);guard($sheet.querySelector('.sheet'));}
-  function submit(e){e.preventDefault();const f=new FormData(e.currentTarget),item={id:ctx.editId||C.uid(ctx.mode==='actual'?'tx':'plan'),label:String(f.get('label')||'').trim(),amount:Number(f.get('amount')||0),date:String(f.get('date')||''),category:String(f.get('category')||'Dịch vụ nhà'),type:String(f.get('type')||'expense')};if(!item.label||!item.amount||!item.date)return;const up=(list,obj)=>{const i=list.findIndex(x=>x.id===obj.id);i>=0?list[i]=obj:list.push(obj);};if(ctx.mode==='actual')up(S.state.transactions,item);else if(ctx.mode==='plan-income')up(S.state.plan.incomes,{id:item.id,label:item.label,amount:item.amount,date:item.date});else up(S.state.plan.expenses,{id:item.id,label:item.label,amount:item.amount,date:item.date,category:item.category});S.save();toast('Đã lưu');close();render();}
+  function openEditor(mode='actual',editId=null){
+    ctx={mode,editId};
+    const isPlanIncome=mode==='plan-income',isActual=mode==='actual',list=isPlanIncome?S.state.plan.incomes:S.state.plan.expenses;
+    const item=editId?(isActual?S.state.transactions.find(x=>x.id===editId):list.find(x=>x.id===editId)):null;
+    const type=isActual?(item?.type||'expense'):(isPlanIncome?'income':'expense');
+    const date=item?.date||(isActual?C.dateInMonth(C.currentMonthKey,Math.min(C.now.getDate(),28)):C.dateInMonth(S.state.plan.month,10));
+    const category=validCategory(type,item?.category)?item.category:defaultCategory(type);
+    document.body.classList.add('modal-open');
+    $sheet.innerHTML=`<div class="sheet-backdrop"><section class="sheet" role="dialog" aria-modal="true"><div class="sheet__grab"></div><div class="sheet__head"><h2>${editId?'Chỉnh sửa':'Thêm mục'}</h2><button class="sheet__close" data-close aria-label="Đóng">×</button></div>${isActual?`<div class="segment"><button type="button" data-seg="income" class="${type==='income'?'active':''}">Thu thực tế</button><button type="button" data-seg="expense" class="${type==='expense'?'active':''}">Chi thực tế</button><button type="button" data-seg="plan">Kế hoạch</button></div>`:''}<form id="editor"><input type="hidden" name="type" value="${type}"><div class="form-grid"><div class="field full"><label>Tên khoản</label><input name="label" required value="${C.escapeHtml(item?.label||'')}" placeholder="${type==='income'?'VD: Lương tháng 10, lãi business':'VD: Tiền nhà, ăn uống'}"></div><div class="field full"><label>Số tiền</label><input name="amount" type="number" min="0" step="1000" inputmode="numeric" required value="${item?.amount||''}" placeholder="0"></div><div class="field full"><label>${type==='income'?'Ngày nhận':'Ngày'}</label><input name="date" type="date" required value="${date}"></div><div class="field full" data-category-wrap><label>${type==='income'?'Nguồn thu':'Danh mục'}</label><select name="category">${categoryOptions(type,category)}</select></div></div><div class="sheet-actions">${editId?'<button type="button" class="btn danger" data-delete>Xóa</button>':'<button type="button" class="btn" data-close>Huỷ</button>'}<button class="btn primary" type="submit">${editId?'Lưu':'Thêm'}</button></div></form></section></div>`;bindSheet();
+  }
+  function bindSheet(){
+    const bg=$sheet.querySelector('.sheet-backdrop');
+    bg?.addEventListener('click',e=>{if(e.target===bg)close();});
+    $sheet.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',close));
+    $sheet.querySelectorAll('[data-seg]').forEach(b=>b.addEventListener('click',()=>{
+      if(b.dataset.seg==='plan'){close();openEditor('plan-expense');return;}
+      $sheet.querySelectorAll('[data-seg]').forEach(x=>x.classList.toggle('active',x===b));
+      const type=b.dataset.seg;
+      $sheet.querySelector('[name="type"]').value=type;
+      syncCategoryField(type);
+      const dateLabel=$sheet.querySelector('[name="date"]')?.closest('.field')?.querySelector('label');
+      if(dateLabel)dateLabel.textContent=type==='income'?'Ngày nhận':'Ngày';
+    }));
+    $sheet.querySelector('#editor')?.addEventListener('submit',submit);
+    $sheet.querySelector('[data-delete]')?.addEventListener('click',del);
+    guard($sheet.querySelector('.sheet'));
+  }
+  function submit(e){
+    e.preventDefault();
+    const f=new FormData(e.currentTarget),type=String(f.get('type')||'expense'),categoryRaw=String(f.get('category')||''),category=validCategory(type,categoryRaw)?categoryRaw:defaultCategory(type);
+    const item={id:ctx.editId||C.uid(ctx.mode==='actual'?'tx':'plan'),label:String(f.get('label')||'').trim(),amount:Number(f.get('amount')||0),date:String(f.get('date')||''),category,type};
+    if(!item.label||!item.amount||!item.date)return;
+    const up=(list,obj)=>{const i=list.findIndex(x=>x.id===obj.id);i>=0?list[i]=obj:list.push(obj);};
+    if(ctx.mode==='actual')up(S.state.transactions,item);
+    else if(ctx.mode==='plan-income')up(S.state.plan.incomes,{id:item.id,label:item.label,amount:item.amount,date:item.date,category:item.category});
+    else up(S.state.plan.expenses,{id:item.id,label:item.label,amount:item.amount,date:item.date,category:item.category});
+    S.save();toast('Đã lưu');close();render();
+  }
   function del(){if(!ctx.editId||!confirm('Xóa mục này? Hành động này không thể hoàn tác.'))return;if(ctx.mode==='actual')S.state.transactions=S.state.transactions.filter(x=>x.id!==ctx.editId);else if(ctx.mode==='plan-income')S.state.plan.incomes=S.state.plan.incomes.filter(x=>x.id!==ctx.editId);else S.state.plan.expenses=S.state.plan.expenses.filter(x=>x.id!==ctx.editId);S.save();toast('Đã xóa mục');close();render();}
-  const close=()=>{$sheet.innerHTML='';};
+  const close=()=>{$sheet.innerHTML='';document.body.classList.remove('modal-open');};
   function openSettings(){
+    document.body.classList.add('modal-open');
     $sheet.innerHTML=`<div class="sheet-backdrop"><section class="sheet" role="dialog" aria-modal="true"><div class="sheet__grab"></div><div class="sheet__head"><h2>Cài đặt</h2><button class="sheet__close" data-close aria-label="Đóng">×</button></div><div class="settings-group"><div class="settings-line"><label><span>Biên an toàn buffer</span><output id="safe-out">${S.state.settings.safetyRate}%</output></label><input id="safe" type="range" min="0" max="30" step="1" value="${S.state.settings.safetyRate}"></div><button class="btn" id="export">Xuất backup JSON</button><label class="btn file-btn"><input id="import" type="file" accept="application/json" hidden>Nhập backup JSON</label><button class="btn" id="reset">Khôi phục dữ liệu mẫu</button><div class="settings-danger"><button class="btn danger-strong" id="clear">Xóa toàn bộ dữ liệu</button></div></div><div class="about">© 2026 Rootcash</div></section></div>`;const bg=$sheet.querySelector('.sheet-backdrop');bg.addEventListener('click',e=>{if(e.target===bg)close();});$sheet.querySelector('[data-close]').addEventListener('click',close);const range=$sheet.querySelector('#safe');range.addEventListener('input',()=>{S.state.settings.safetyRate=Number(range.value);$sheet.querySelector('#safe-out').textContent=`${range.value}%`;S.save();});$sheet.querySelector('#export').addEventListener('click',exportBackup);$sheet.querySelector('#import').addEventListener('change',importBackup);$sheet.querySelector('#reset').addEventListener('click',()=>{if(confirm('Khôi phục dữ liệu mẫu? Dữ liệu hiện tại sẽ bị thay thế.')){S.replace(S.defaultState());toast('Đã khôi phục dữ liệu mẫu');close();render();}});$sheet.querySelector('#clear').addEventListener('click',clearAll);guard($sheet.querySelector('.sheet'));
   }
   function clearAll(){if(!confirm('Xóa toàn bộ dữ liệu Rootcash trên thiết bị này?')||!confirm('Xác nhận lần cuối: dữ liệu đã xóa không thể khôi phục.'))return;S.replace(S.emptyState());toast('Đã xóa toàn bộ dữ liệu');close();view='home';render();}
   function exportBackup(){const payload={format:'rootcash-backup',schemaVersion:1,exportedAt:new Date().toISOString(),data:S.state},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`rootcash-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
   async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const json=JSON.parse(await file.text()),data=json?.format==='rootcash-backup'?json.data:json;S.replace(S.migrate(data));toast('Đã nhập backup');close();render();}catch{toast('Backup không hợp lệ');}}
   function splash(){const el=document.querySelector('#splash'),reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;setTimeout(()=>el.classList.add('hidden'),reduced?80:900);}
-  installGuards();if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));render();splash();
+  installGuards();render();splash();
 })();
