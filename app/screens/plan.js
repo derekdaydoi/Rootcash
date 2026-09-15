@@ -45,8 +45,8 @@
   };
 
   RC.screens.allocation=()=>{
-    const p=S.planning(),budget=Number(S.state.plan.livingBudget||0),total=D.allocationTotal(S.state.plan.allocations),remaining=budget-total;
-    const categories=livingCategories();
+    const p=S.planning(),budget=Number(S.state.plan.livingBudget||0),categories=livingCategories();
+    const total=categories.reduce((sum,c)=>sum+Number(S.state.plan.allocations[c.name]||0),0),remaining=budget-total;
     return `${header('Chi phí sinh hoạt',`<button class="icon-btn" data-nav="plan" aria-label="Quay lại">${C.icon('back')}</button>`)}
       <div class="card living-budget-editor">
         <div class="living-budget-editor__head"><span class="living-budget-editor__ico">${C.icon('wallet')}</span><div><span>Ngân sách tháng</span><strong data-living-budget-display>${C.fmtMoney(budget)}</strong></div></div>

@@ -52,7 +52,7 @@
     raw.plan.expenses = Array.isArray(raw.plan.expenses) ? raw.plan.expenses : [];
     raw.plan.expenses = raw.plan.expenses.map(item => C.categoryNames.has(item?.category) ? item : {...item,category:'Dịch vụ nhà'});
     raw.plan.allocations = normalizeAllocations(raw.plan.allocations);
-    const inferredLiving = D.allocationTotal(raw.plan.allocations);
+    const inferredLiving = C.categories.filter(c=>c.name!=='Chi phí vay').reduce((sum,c)=>sum+Number(raw.plan.allocations[c.name]||0),0);
     const livingBudget = Number(raw.plan.livingBudget);
     raw.plan.livingBudget = Number.isFinite(livingBudget) && livingBudget >= 0 ? Math.round(livingBudget) : inferredLiving;
     raw.settings = {safetyRate:10,...(raw.settings||{})};

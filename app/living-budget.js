@@ -2,17 +2,18 @@
   'use strict';
   const RC=window.RootcashApp;
   if(!RC?.store||!RC?.config||!window.RootcashDomain)return;
-  const S=RC.store,C=RC.config,D=window.RootcashDomain;
+  const S=RC.store,C=RC.config;
   const app=document.querySelector('#app');
   const toastRoot=document.querySelector('#toast-root');
   const money=value=>String(value??'').replace(/[^0-9]/g,'');
   const toast=msg=>{if(!toastRoot)return;const el=document.createElement('div');el.className='toast';el.textContent=msg;toastRoot.appendChild(el);setTimeout(()=>el.remove(),2200);};
   const budget=()=>Math.max(0,Number(S.state.plan.livingBudget||0));
   const livingNames=()=>new Set(C.categories.filter(c=>c.name!=='Chi phí vay').map(c=>c.name));
+  const livingTotal=()=>{const names=livingNames();return Object.entries(S.state.plan.allocations||{}).reduce((sum,[name,value])=>sum+(names.has(name)?Number(value||0):0),0);};
 
   function refreshSummary(){
     const limit=budget();
-    const total=D.allocationTotal(S.state.plan.allocations);
+    const total=livingTotal();
     const remaining=limit-total;
     const summary=app?.querySelector('[data-living-summary]');
     if(summary){
