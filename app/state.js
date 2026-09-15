@@ -7,10 +7,17 @@
   const blankAllocations = () => Object.fromEntries(C.categories.map(c => [c.name, 0]));
   const normalizeAllocations = (raw={}) => Object.fromEntries(C.categories.map(c => [c.name, Number(raw?.[c.name] || 0)]));
   const emptyState = () => ({schemaVersion:1,transactions:[],plan:{month:C.nextMonthKey,incomes:[],expenses:[],allocations:blankAllocations()},settings:{safetyRate:10}});
+  const inferIncomeCategory = item => {
+    if (C.incomeCategoryNames.has(item?.category)) return item.category;
+    const text = `${item?.label || ''} ${item?.category || ''}`.toLowerCase();
+    if (text.includes('lương') || text.includes('salary')) return 'Lương';
+    if (text.includes('business') || text.includes('kinh doanh') || text.includes('lãi')) return 'Business';
+    return 'Thu nhập khác';
+  };
 
   function defaultState(){
     const tx=[
-      {id:C.uid('tx'),type:'income',label:'Lương & thu nhập',amount:27500000,date:C.dateInMonth(C.currentMonthKey,9),category:'Thu nhập'},
+      {id:C.uid('tx'),type:'income',label:'Lương chính',amount:27500000,date:C.dateInMonth(C.currentMonthKey,9),category:'Lương'},
       {id:C.uid('tx'),type:'expense',label:'Ăn uống',amount:4200000,date:C.dateInMonth(C.currentMonthKey,7),category:'Ăn uống'},
       {id:C.uid('tx'),type:'expense',label:'Mua sắm',amount:3100000,date:C.dateInMonth(C.currentMonthKey,10),category:'Mua sắm'},
       {id:C.uid('tx'),type:'expense',label:'Thể thao',amount:1200000,date:C.dateInMonth(C.currentMonthKey,12),category:'Thể thao'},
@@ -18,9 +25,9 @@
       {id:C.uid('tx'),type:'expense',label:'Dịch vụ nhà',amount:5800000,date:C.dateInMonth(C.currentMonthKey,18),category:'Dịch vụ nhà'},
     ];
     const incomes=[
-      {id:C.uid('pin'),label:'Lương chính',amount:20000000,date:C.dateInMonth(C.nextMonthKey,9)},
-      {id:C.uid('pin'),label:'Thưởng/ngoài',amount:4000000,date:C.dateInMonth(C.nextMonthKey,15)},
-      {id:C.uid('pin'),label:'Thu khác',amount:5000000,date:C.dateInMonth(C.nextMonthKey,24)},
+      {id:C.uid('pin'),label:'Lương chính',amount:20000000,date:C.dateInMonth(C.nextMonthKey,9),category:'Lương'},
+      {id:C.uid('pin'),label:'Business',amount:4000000,date:C.dateInMonth(C.nextMonthKey,15),category:'Business'},
+      {id:C.uid('pin'),label:'Thu nhập khác',amount:5000000,date:C.dateInMonth(C.nextMonthKey,24),category:'Thu nhập khác'},
     ];
     const expenses=[
       {id:C.uid('pout'),label:'Tiền nhà',amount:5500000,date:C.dateInMonth(C.nextMonthKey,3),category:'Dịch vụ nhà'},
@@ -34,10 +41,14 @@
     if(!raw || typeof raw!=='object') return defaultState();
     raw.schemaVersion ||= 1;
     raw.transactions = Array.isArray(raw.transactions) ? raw.transactions : [];
-    raw.transactions = raw.transactions.map(tx => tx?.type==='expense' && !C.categoryNames.has(tx.category) ? {...tx,category:'Dịch vụ nhà'} : tx);
+    raw.transactions = raw.transactions.map(tx => {
+      if (tx?.type === 'income') return {...tx, category: inferIncomeCategory(tx)};
+      return C.categoryNames.has(tx?.category) ? tx : {...tx, category:'Dịch vụ nhà'};
+    });
     raw.plan ||= {month:C.nextMonthKey,incomes:[],expenses:[],allocations:{}};
     raw.plan.month ||= C.nextMonthKey;
     raw.plan.incomes = Array.isArray(raw.plan.incomes) ? raw.plan.incomes : [];
+    raw.plan.incomes = raw.plan.incomes.map(item => ({...item, category: inferIncomeCategory(item)}));
     raw.plan.expenses = Array.isArray(raw.plan.expenses) ? raw.plan.expenses : [];
     raw.plan.expenses = raw.plan.expenses.map(item => C.categoryNames.has(item?.category) ? item : {...item,category:'Dịch vụ nhà'});
     raw.plan.allocations = normalizeAllocations(raw.plan.allocations);
