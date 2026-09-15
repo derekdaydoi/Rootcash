@@ -17,6 +17,8 @@
     { name: 'AI và học tập', icon: 'learning', color: '#8F82D9', tint: '#F2F0FF' },
     { name: 'Trading', icon: 'trading', color: '#DD8B53', tint: '#FFF1E7' },
     { name: 'Invest', icon: 'invest', color: '#4C9B61', tint: '#EAF8EE' },
+    { name: 'Chi phí vay', icon: 'loan', color: '#B7774E', tint: '#FFF2E8' },
+    { name: 'Chi phí khác', icon: 'expense-other', color: '#7C828A', tint: '#F1F3F5' },
   ];
 
   const incomeCategories = [
@@ -51,6 +53,8 @@
     learning:`<path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H11v17H7.5A3.5 3.5 0 0 0 4 22V5.5ZM20 5.5A3.5 3.5 0 0 0 16.5 2H13v17h3.5A3.5 3.5 0 0 1 20 22V5.5Z"/><path d="m18.5 3 .5-1 .5 1 1 .5-1 .5-.5 1-.5-1-1-.5 1-.5Z"/>`,
     trading:`<path d="M6 4v16M18 4v16M12 4v16"/><rect x="4.5" y="7" width="3" height="5" rx="1"/><rect x="10.5" y="11" width="3" height="6" rx="1"/><rect x="16.5" y="6" width="3" height="8" rx="1"/>`,
     invest:`<path d="M4 18 9 13l3 3 8-9"/><path d="M15 7h5v5"/><path d="M4 21h16"/>`,
+    loan:`<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 9H5v2M17 15h2v-2"/>`,
+    'expense-other':`<circle cx="12" cy="12" r="8"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>`,
   };
   const icon = name => `<svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || ''}</svg>`;
   const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
