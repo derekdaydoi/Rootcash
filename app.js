@@ -24,6 +24,12 @@
   const categoryOptions=(type,selected)=>categoryList(type).map(c=>`<option value="${C.escapeHtml(c.name)}" ${c.name===selected?'selected':''}>${C.escapeHtml(c.name)}</option>`).join('');
   const formatDateLabel=iso=>{if(!iso)return 'Chọn ngày';const [y,m,d]=String(iso).split('-');return `ngày ${Number(d)} thg ${Number(m)}, ${y}`;};
   const defaultDateFor=(mode,type)=>mode==='actual'?C.dateInMonth(C.currentMonthKey,Math.min(C.now.getDate(),28)):C.dateInMonth(S.state.plan.month,10);
+  const parseMoney=value=>{
+    const digits=String(value??'').replace(/[^0-9]/g,'');
+    if(!digits)return 0;
+    const amount=Number(digits);
+    return Number.isSafeInteger(amount)?amount:NaN;
+  };
 
   function syncCategoryField(type){
     const wrap=$sheet.querySelector('[data-category-wrap]'),select=wrap?.querySelector('select'),label=wrap?.querySelector('label');
@@ -39,6 +45,17 @@
     paint();
     input.addEventListener('input',paint);
     input.addEventListener('change',paint);
+  }
+  function syncAmountInput(){
+    const input=$sheet.querySelector('input[name="amount"]');
+    if(!input)return;
+    const clean=()=>{
+      const digits=String(input.value||'').replace(/[^0-9]/g,'');
+      if(input.value!==digits)input.value=digits;
+      input.setCustomValidity('');
+    };
+    input.addEventListener('input',clean);
+    input.addEventListener('paste',()=>setTimeout(clean,0));
   }
   function syncEditorFields(type,{resetDate=false}={}){
     syncCategoryField(type);
@@ -62,8 +79,8 @@
     const showSegment=!editId;
     const planMode=mode==='plan-income'||mode==='plan-expense';
     document.body.classList.add('modal-open');
-    $sheet.innerHTML=`<div class="sheet-backdrop"><section class="sheet" role="dialog" aria-modal="true"><div class="sheet__grab"></div><div class="sheet__head"><h2>${editId?'Chỉnh sửa':'Thêm mục'}</h2><button class="sheet__close" data-close aria-label="Đóng">×</button></div>${showSegment?`<div class="segment" aria-label="Loại mục"><button type="button" data-seg="income" class="${!planMode&&type==='income'?'active':''}">Thu thực tế</button><button type="button" data-seg="expense" class="${!planMode&&type==='expense'?'active':''}">Chi thực tế</button><button type="button" data-seg="plan" class="${planMode?'active':''}">Kế hoạch</button></div>`:''}<form id="editor"><input type="hidden" name="type" value="${type}"><div class="form-grid"><div class="field full"><label>Tên khoản</label><input name="label" required value="${C.escapeHtml(item?.label||'')}" placeholder="${type==='income'?'VD: Lương tháng 10, lãi business':'VD: Tiền nhà, ăn uống'}"></div><div class="field full"><label>Số tiền</label><input name="amount" type="number" min="0" step="1000" inputmode="numeric" required value="${item?.amount||''}" placeholder="0"></div><div class="field full"><label>${type==='income'?'Ngày nhận':'Ngày'}</label><div class="date-control"><input class="date-native" name="date" type="date" required value="${date}" aria-label="${type==='income'?'Ngày nhận':'Ngày'}"><span class="date-value" data-date-value>${formatDateLabel(date)}</span></div></div><div class="field full" data-category-wrap><label>${type==='income'?'Nguồn thu':'Danh mục'}</label><select name="category">${categoryOptions(type,category)}</select></div></div><div class="sheet-actions">${editId?'<button type="button" class="btn danger" data-delete>Xóa</button>':'<button type="button" class="btn" data-close>Huỷ</button>'}<button class="btn primary" type="submit">${editId?'Lưu':'Thêm'}</button></div></form></section></div>`;
-    bindSheet();syncDateDisplay();
+    $sheet.innerHTML=`<div class="sheet-backdrop"><section class="sheet" role="dialog" aria-modal="true"><div class="sheet__grab"></div><div class="sheet__head"><h2>${editId?'Chỉnh sửa':'Thêm mục'}</h2><button class="sheet__close" data-close aria-label="Đóng">×</button></div>${showSegment?`<div class="segment" aria-label="Loại mục"><button type="button" data-seg="income" class="${!planMode&&type==='income'?'active':''}">Thu thực tế</button><button type="button" data-seg="expense" class="${!planMode&&type==='expense'?'active':''}">Chi thực tế</button><button type="button" data-seg="plan" class="${planMode?'active':''}">Kế hoạch</button></div>`:''}<form id="editor"><input type="hidden" name="type" value="${type}"><div class="form-grid"><div class="field full"><label>Tên khoản</label><input name="label" required value="${C.escapeHtml(item?.label||'')}" placeholder="${type==='income'?'VD: Lương tháng 10, lãi business':'VD: Tiền nhà, ăn uống'}"></div><div class="field full"><label>Số tiền</label><input name="amount" type="text" inputmode="numeric" enterkeyhint="done" autocomplete="off" required value="${item?.amount||''}" placeholder="0" aria-label="Số tiền"></div><div class="field full"><label>${type==='income'?'Ngày nhận':'Ngày'}</label><div class="date-control"><input class="date-native" name="date" type="date" required value="${date}" aria-label="${type==='income'?'Ngày nhận':'Ngày'}"><span class="date-value" data-date-value>${formatDateLabel(date)}</span></div></div><div class="field full" data-category-wrap><label>${type==='income'?'Nguồn thu':'Danh mục'}</label><select name="category">${categoryOptions(type,category)}</select></div></div><div class="sheet-actions">${editId?'<button type="button" class="btn danger" data-delete>Xóa</button>':'<button type="button" class="btn" data-close>Huỷ</button>'}<button class="btn primary" type="submit">${editId?'Lưu':'Thêm'}</button></div></form></section></div>`;
+    bindSheet();syncDateDisplay();syncAmountInput();
   }
   function bindSheet(){
     const bg=$sheet.querySelector('.sheet-backdrop');
@@ -90,8 +107,14 @@
   function submit(e){
     e.preventDefault();
     const f=new FormData(e.currentTarget),type=String(f.get('type')||'expense'),categoryRaw=String(f.get('category')||''),category=validCategory(type,categoryRaw)?categoryRaw:defaultCategory(type);
-    const item={id:ctx.editId||C.uid(ctx.mode==='actual'?'tx':'plan'),label:String(f.get('label')||'').trim(),amount:Number(f.get('amount')||0),date:String(f.get('date')||''),category,type};
-    if(!item.label||!item.amount||!item.date)return;
+    const amountInput=e.currentTarget.elements.amount,amount=parseMoney(f.get('amount'));
+    if(!Number.isSafeInteger(amount)||amount<=0){
+      amountInput?.setCustomValidity('Số tiền phải là số nguyên lớn hơn 0');
+      amountInput?.reportValidity();
+      return;
+    }
+    const item={id:ctx.editId||C.uid(ctx.mode==='actual'?'tx':'plan'),label:String(f.get('label')||'').trim(),amount,date:String(f.get('date')||''),category,type};
+    if(!item.label||!item.date)return;
     const up=(list,obj)=>{const i=list.findIndex(x=>x.id===obj.id);i>=0?list[i]=obj:list.push(obj);};
     if(ctx.mode==='actual')up(S.state.transactions,item);
     else if(ctx.mode==='plan-income')up(S.state.plan.incomes,{id:item.id,label:item.label,amount:item.amount,date:item.date,category:item.category});
