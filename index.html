@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="styles-overlays.css?v=20260915-ui-r16" />
   <link rel="stylesheet" href="styles-plan-flow.css?v=20260915-plan-r18" />
   <link rel="stylesheet" href="styles-cashflow.css?v=20260915-cash-r19" />
+  <link rel="stylesheet" href="styles-living-budget.css?v=20260916-budget-r20" />
 </head>
 <body>
   <div id="splash" hidden></div>
@@ -32,14 +33,15 @@
       caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('rootcash')).map(key => caches.delete(key)))).catch(() => {});
     }
   </script>
-  <script src="domain.js?v=6"></script>
-  <script src="app/config.js?v=20260916-category-r20"></script>
-  <script src="app/state.js?v=20260915-ui-r15"></script>
+  <script src="domain.js?v=20260916-budget-r20"></script>
+  <script src="app/config.js?v=20260916-cat-r20"></script>
+  <script src="app/state.js?v=20260916-budget-r20"></script>
   <script src="app/screens/base.js?v=6"></script>
   <script src="app/screens/home.js?v=6"></script>
   <script src="app/screens/finance.js?v=20260915-cash-r19"></script>
-  <script src="app/screens/plan.js?v=20260915-plan-r18"></script>
+  <script src="app/screens/plan.js?v=20260916-budget-r20"></script>
   <script src="app.js?v=20260915-ui-r17"></script>
   <script src="app/plan-flow.js?v=20260915-plan-r18"></script>
+  <script src="app/living-budget.js?v=20260916-budget-r20"></script>
 </body>
 </html>

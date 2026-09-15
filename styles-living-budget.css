@@ -1,0 +1,22 @@
+.metric-living .metric__ico{color:#276c46;background:#e9f8ec}
+.living-budget-link{width:100%;min-width:0;display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:10px;margin-top:12px;padding:13px 14px;border:1px solid rgba(65,133,51,.15);border-radius:20px;background:linear-gradient(145deg,rgba(186,255,156,.72),rgba(224,255,210,.74));text-align:left}
+.living-budget-link__icon{width:40px;height:40px;display:grid;place-items:center;border-radius:14px;background:rgba(255,255,255,.62);color:#276c46}
+.living-budget-link__icon svg{width:21px;height:21px}
+.living-budget-link__copy{min-width:0;display:flex;flex-direction:column;gap:3px}
+.living-budget-link__copy small{color:#5e675a;font-size:10.5px}
+.living-budget-link__copy b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-variant-numeric:tabular-nums}
+.living-budget-link__action{white-space:nowrap;color:#286d3d;font-size:11.5px;font-weight:650}
+.living-budget-editor{padding:15px}
+.living-budget-editor__head{display:grid;grid-template-columns:46px minmax(0,1fr);align-items:center;gap:11px}
+.living-budget-editor__ico{width:44px;height:44px;display:grid;place-items:center;border-radius:14px;background:#ebffe3;color:#276c46}
+.living-budget-editor__ico svg{width:22px;height:22px}
+.living-budget-editor__head span{display:block;color:var(--muted);font-size:11px}
+.living-budget-editor__head strong{display:block;margin-top:3px;font-size:clamp(24px,7vw,31px);line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.living-budget-form{margin-top:14px}
+.living-budget-form label{display:block;margin-bottom:6px;color:var(--muted);font-size:11px}
+.living-budget-form__row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.living-budget-form__row input{min-width:0;width:100%;height:48px;padding:0 14px;border:1px solid rgba(15,15,15,.12);border-radius:14px;background:#fff;color:var(--ink);font-variant-numeric:tabular-nums;outline:none}
+.living-budget-form__row input:focus{border-color:#79c864;box-shadow:0 0 0 3px rgba(186,255,156,.35)}
+.living-budget-form__row button{height:48px;padding:0 17px;border:0;border-radius:14px;background:var(--accent);font-size:12px;font-weight:700}
+.living-allocation-card .section-title{align-items:flex-start}
+@media (max-width:360px){.living-budget-link{grid-template-columns:38px minmax(0,1fr) auto;padding:12px}.living-budget-link__action{font-size:10.5px}.living-budget-form__row{grid-template-columns:minmax(0,1fr) 68px}.living-budget-form__row button{padding:0 10px}}

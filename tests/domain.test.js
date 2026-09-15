@@ -11,15 +11,20 @@ const expenses = [
   { amount: 6300000, date: '2026-10-10' },
   { amount: 2000000, date: '2026-10-12' },
 ];
-const p = D.calculateBuffer(incomes, expenses, 10);
+const p = D.calculateBuffer(incomes, expenses, 10, 8000000);
 assert.strictEqual(p.totalIncome, 29000000);
 assert.strictEqual(p.totalExpense, 18600000);
-assert.strictEqual(p.flexible, 10400000);
+assert.strictEqual(p.livingBudget, 8000000);
+assert.strictEqual(p.flexible, 2400000);
+assert.strictEqual(p.headroom, 2400000);
 assert.strictEqual(p.timingGap, 10300000);
-assert.strictEqual(p.safetyMargin, 1860000);
-assert.strictEqual(p.recommended, 12500000);
-const sameDay = D.calculateBuffer([{amount:1000000,date:'2026-10-03'}],[{amount:1000000,date:'2026-10-03'}],0);
+assert.strictEqual(p.safetyMargin, 2660000);
+assert.strictEqual(p.recommended, 21000000);
+const sameDay = D.calculateBuffer([{amount:1000000,date:'2026-10-03'}],[{amount:1000000,date:'2026-10-03'}],0,0);
 assert.strictEqual(sameDay.timingGap, 1000000, 'same-day expense should be considered before income');
+const livingOnly = D.calculateBuffer([], [], 10, 8000000);
+assert.strictEqual(livingOnly.safetyMargin, 800000);
+assert.strictEqual(livingOnly.recommended, 9000000);
 const summary = D.monthSummary([
   { type:'income', amount:100, date:'2026-09-01' },
   { type:'expense', amount:40, date:'2026-09-02', category:'Ăn uống' },
