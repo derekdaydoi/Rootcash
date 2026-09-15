@@ -1,5 +1,10 @@
-const CACHE='rootcash-brand-r13';
-const ASSETS=['./','./index.html','./styles.css?v=6','./styles-overlays.css?v=6','./domain.js?v=6','./app/config.js?v=6','./app/state.js?v=6','./app/screens/base.js?v=6','./app/screens/home.js?v=6','./app/screens/finance.js?v=6','./app/screens/plan.js?v=6','./app.js?v=6','./manifest.webmanifest?v=20260915-brand-r13','./brand/rootcash-icon.png?v=20260915-brand-r13'];
-self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
-self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;const r=e.request;if(r.mode==='navigate'){e.respondWith(fetch(r).then(res=>{const copy=res.clone();caches.open(CACHE).then(c=>c.put(r,copy));return res;}).catch(()=>caches.match(r).then(x=>x||caches.match('./index.html'))));return;}e.respondWith(caches.match(r).then(x=>x||fetch(r).then(res=>{const copy=res.clone();caches.open(CACHE).then(c=>c.put(r,copy));return res;})));});
+// Rootcash data lives in localStorage. This worker only retires old Rootcash caches
+// so Safari/iOS cannot keep serving stale favicon or Apple touch icon assets.
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith('rootcash')).map(key => caches.delete(key)));
+    await self.registration.unregister();
+  })());
+});
