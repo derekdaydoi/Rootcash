@@ -266,8 +266,8 @@
   function openEntry(id) {
     const occ = id ? D.occurrences(S.entries, ui.month).find(r => r.id === id) : null;
     entryDraft = occ
-      ? { id, type: occ.type, label: occ.label, amount: occ.amount, date: occ.date, repeat: !!occ.repeat, done: occ.done }
-      : { id: null, type: ui.filter === 'in' ? 'in' : 'out', label: '', amount: '', date: ui.month === curKey ? isoOf(now) : D.dateIn(ui.month, 1), repeat: false, done: false };
+      ? { id, type: occ.type, label: occ.label, amount: occ.amount, date: occ.date, repeat: !!occ.repeat, done: occ.done, account: occ.account || '' }
+      : { id: null, type: ui.filter === 'in' ? 'in' : 'out', label: '', amount: '', date: ui.month === curKey ? isoOf(now) : D.dateIn(ui.month, 1), repeat: false, done: false, account: (S.accounts.find(a => a.kind === 'asset' && (a.type === 'cash' || a.type === 'bank')) || {}).id || '' };
     paintEntry();
   }
   function paintEntry() {
@@ -278,14 +278,15 @@
         <div class="field"><label>Tên khoản</label><input class="input" name="label" required autocomplete="off" placeholder="${isIn ? 'VD: Lương, lãi business' : 'VD: Tiền nhà, trả góp'}" value="${esc(d.label)}"></div>
         <div class="field"><label>Số tiền</label>${moneyField('amount', d.amount)}</div>
         <div class="field"><label>${isIn ? 'Ngày nhận' : 'Ngày chi'}</label>${dateField('date', d.date)}</div>
+        ${S.accounts.some(a => a.kind === 'asset') ? `<div class="field"><label>Tài khoản</label><select class="input" name="account"><option value="">Không liên kết</option>${S.accounts.filter(a => a.kind === 'asset').map(a => `<option value="${esc(a.id)}" ${d.account === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>` : ''}
         <label class="switch"><div>Lặp lại hàng tháng<small>Tự xuất hiện ở các tháng sau</small></div><input type="checkbox" name="repeat" ${d.repeat ? 'checked' : ''}></label>
-        <label class="switch"><div>${isIn ? 'Đã nhận' : 'Đã chi'}<small>Xác nhận khoản này đã thực hiện</small></div><input type="checkbox" name="done" ${d.done ? 'checked' : ''}></label>
+        <label class="switch"><div>${isIn ? 'Đã nhận' : 'Đã chi'}<small>Tự cập nhật số dư tài khoản đã chọn</small></div><input type="checkbox" name="done" ${d.done ? 'checked' : ''}></label>
         <div class="actions">${d.id ? '<button type="button" class="btn danger fit" data-act="del-entry">Xóa</button>' : ''}<button type="button" class="btn" data-act="close">Huỷ</button><button class="btn primary" type="submit">Lưu</button></div>
       </form>`);
   }
   const readEntry = form => {
     const f = new FormData(form);
-    return { ...entryDraft, label: String(f.get('label') || '').trim(), amount: digits(f.get('amount')), date: String(f.get('date') || ''), repeat: form.elements.repeat.checked, done: form.elements.done.checked };
+    return { ...entryDraft, label: String(f.get('label') || '').trim(), amount: digits(f.get('amount')), date: String(f.get('date') || ''), repeat: form.elements.repeat.checked, done: form.elements.done.checked, account: form.elements.account ? form.elements.account.value : '' };
   };
   function saveEntry(form) {
     const d = readEntry(form), amount = Number(d.amount);
@@ -298,9 +299,13 @@
     d.done ? doneIn.add(doneKey) : doneIn.delete(doneKey);
     // a recurring entry keeps its start month; only the day of month changes
     const date = existing && existing.repeat && d.repeat ? `${D.monthOf(existing.date)}-${d.date.slice(8, 10)}` : d.date;
-    const entry = { id: d.id || uid(), type: d.type, label: d.label, amount, date, repeat: d.repeat, doneIn: [...doneIn] };
+    // Done entries move the linked account balance: undo the old effect, apply the new one.
+    const shift = (acc, type, value, sign) => { const a = S.accounts.find(x => x.id === acc); if (a) a.balance += sign * (type === 'in' ? value : -value); };
+    if (existing && (existing.doneIn || []).includes(existing.repeat ? ui.month : D.monthOf(existing.date))) shift(existing.account, existing.type, existing.amount, -1);
+    if (d.done) shift(d.account, d.type, amount, 1);
+    const entry = { id: d.id || uid(), type: d.type, label: d.label, amount, date, repeat: d.repeat, doneIn: [...doneIn], account: d.account };
     existing ? Object.assign(existing, entry) : S.entries.push(entry);
-    save(); closeSheet(); render(); toast('Đã lưu');
+    recordNetWorth(); save(); closeSheet(); render(); toast('Đã lưu');
   }
   function deleteEntry() {
     const e = S.entries.find(x => x.id === entryDraft.id);
