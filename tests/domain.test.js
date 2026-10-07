@@ -1,36 +1,59 @@
 const assert = require('assert');
 const D = require('../domain.js');
-const incomes = [
-  { amount: 20000000, date: '2026-10-09' },
-  { amount: 4000000, date: '2026-10-15' },
-  { amount: 5000000, date: '2026-10-24' },
+
+const entries = [
+  { id: '1', type: 'in', label: 'Lương', amount: 30000000, date: '2026-10-01', repeat: false, doneIn: [] },
+  { id: '2', type: 'out', label: 'Tiền nhà', amount: 6000000, date: '2026-10-01', repeat: true, doneIn: [] },
+  { id: '3', type: 'out', label: 'Trả góp', amount: 20000000, date: '2026-10-12', repeat: false, doneIn: ['2026-10'] },
 ];
-const expenses = [
-  { amount: 5500000, date: '2026-10-03' },
-  { amount: 4800000, date: '2026-10-08' },
-  { amount: 6300000, date: '2026-10-10' },
-  { amount: 2000000, date: '2026-10-12' },
-];
-const p = D.calculateBuffer(incomes, expenses, 10, 8000000);
-assert.strictEqual(p.totalIncome, 29000000);
-assert.strictEqual(p.totalExpense, 18600000);
-assert.strictEqual(p.livingBudget, 8000000);
-assert.strictEqual(p.flexible, 2400000);
-assert.strictEqual(p.headroom, 2400000);
-assert.strictEqual(p.timingGap, 10300000);
-assert.strictEqual(p.safetyMargin, 2660000);
-assert.strictEqual(p.recommended, 21000000);
-const sameDay = D.calculateBuffer([{amount:1000000,date:'2026-10-03'}],[{amount:1000000,date:'2026-10-03'}],0,0);
-assert.strictEqual(sameDay.timingGap, 1000000, 'same-day expense should be considered before income');
-const livingOnly = D.calculateBuffer([], [], 10, 8000000);
-assert.strictEqual(livingOnly.safetyMargin, 800000);
-assert.strictEqual(livingOnly.recommended, 9000000);
-const summary = D.monthSummary([
-  { type:'income', amount:100, date:'2026-09-01' },
-  { type:'expense', amount:40, date:'2026-09-02', category:'Ăn uống' },
-  { type:'expense', amount:10, date:'2026-08-30', category:'Dịch vụ nhà' },
-], '2026-09');
-assert.deepStrictEqual({income:summary.income,expense:summary.expense,remaining:summary.remaining}, {income:100,expense:40,remaining:60});
-assert.strictEqual(summary.byCategory['Ăn uống'],40);
-assert.strictEqual(D.allocationTotal({'A':100,'B':200}),300);
+
+// recurring entries: start month onward, clamped to month length, never before start
+assert.strictEqual(D.occurrences(entries, '2026-09').length, 0);
+assert.strictEqual(D.occurrences(entries, '2026-11').length, 1);
+const clamp = D.occurrences([{ id: 'x', type: 'out', amount: 1, date: '2026-01-31', repeat: true }], '2026-02');
+assert.strictEqual(clamp[0].date, '2026-02-28');
+
+// same day: outflow sorts before inflow
+assert.deepStrictEqual(D.occurrences(entries, '2026-10').slice(0, 2).map(r => r.id), ['2', '1']);
+
+// surplus, rest after the living block, buffer from the deepest dip
+const p = D.monthPlan(entries, { '2026-10': 3100000 }, '2026-10');
+assert.strictEqual(p.inflow, 30000000);
+assert.strictEqual(p.outflow, 26000000);
+assert.strictEqual(p.net, 4000000);
+assert.strictEqual(p.rest, 900000);
+assert.strictEqual(p.done, 1);
+assert.strictEqual(p.low.day, 1, 'day 1 outflow is applied before the salary');
+assert.strictEqual(p.buffer, 6500000);
+assert.strictEqual(D.roundUp(1), 500000);
+assert.strictEqual(D.roundUp(0), 0);
+
+// deficit month
+const deficit = D.monthPlan([{ id: 'd', type: 'out', amount: 5000000, date: '2026-10-05', repeat: false }], {}, '2026-10');
+assert.strictEqual(deficit.net, -5000000);
+assert.strictEqual(deficit.buffer, 5000000);
+
+// living inherits from the latest earlier month
+assert.strictEqual(D.livingFor({ '2026-08': 7, '2026-10': 9 }, '2026-09'), 7);
+assert.strictEqual(D.livingFor({ '2026-08': 7, '2026-10': 9 }, '2026-12'), 9);
+assert.strictEqual(D.livingFor({}, '2026-12'), 0);
+assert.strictEqual(D.shiftMonth('2026-12', 1), '2027-01');
+assert.strictEqual(D.shiftMonth('2026-01', -1), '2025-12');
+
+// net worth + liquidity
+const w = D.netWorth([
+  { kind: 'asset', type: 'cash', balance: 10 }, { kind: 'asset', type: 'invest', balance: 50 }, { kind: 'debt', type: 'debt', balance: 20 },
+]);
+assert.deepStrictEqual(w, { assets: 60, debts: 20, net: 40, liquid: 10 });
+
+// migration from the first release
+const m = D.migrateV1({
+  transactions: [{ id: 't', type: 'income', label: 'Lương', amount: 5, date: '2026-10-01' }],
+  plan: { month: '2026-11', incomes: [], expenses: [{ id: 'p', label: 'Nhà', amount: 3, date: '2026-11-03' }], livingBudget: 8 },
+});
+assert.strictEqual(m.entries.length, 2);
+assert.deepStrictEqual(m.entries[0].doneIn, ['2026-10']);
+assert.deepStrictEqual(m.entries[1].doneIn, []);
+assert.strictEqual(m.living['2026-11'], 8);
+
 console.log('Rootcash domain tests: PASS');
