@@ -47,6 +47,7 @@
     wallet: '<path d="M4 7a3 3 0 0 1 3-3h11v16H7a3 3 0 0 1-3-3V7Z"/><path d="M4 8h14"/><path d="M14 12h7v5h-7a2.5 2.5 0 0 1 0-5Z"/>',
     bank: '<path d="M3 10 12 4l9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/>',
     invest: '<path d="M4 17 9 12l3 3 8-9"/><path d="M15 6h5v5"/>',
+    target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/>',
     case: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18"/>',
   };
   const icon = name => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -159,6 +160,7 @@
       <section class="card" data-act="living" role="button" tabindex="0">
         <div class="card-head"><h3>Sinh hoạt tháng ${Number(ui.month.slice(5))}</h3>${icon('pencil')}</div>
         ${barRow('Sinh hoạt', P.living, pct(P.living, P.net))}
+        ${P.reserve ? barRow('Kế hoạch', P.reserve, pct(P.reserve, P.net), { cls: 'plan' }) : ''}
         ${barRow(restNeg ? 'Thiếu hụt' : 'Chưa phân bổ', P.rest, restNeg ? 100 : pct(P.rest, P.net), { neg: restNeg, cls: restNeg ? 'warn' : 'dim' })}
         ${barRow('Đã xác nhận', 0, pct(P.done, P.rows.length), { cls: 'dim', text: `${P.done}/${P.rows.length} khoản` })}
       </section>
@@ -175,24 +177,28 @@
 
   function flow() {
     const all = D.occurrences(S.entries, ui.month);
-    const rows = all.filter(r => ui.filter === 'all' || r.type === ui.filter);
+    const rows = all.filter(r => ui.filter === 'all' || (ui.filter === 'plan' ? r.type === 'plan' : D.kindOf(r) === ui.filter));
     const days = new Map();
     rows.forEach(r => { if (!days.has(r.date)) days.set(r.date, []); days.get(r.date).push(r); });
     const todayIso = isoOf(now);
     const isNow = ui.month === curKey;
     const dates = [...days.keys()];
     if (isNow && !days.has(todayIso)) { dates.push(todayIso); days.set(todayIso, []); dates.sort(); }
-    const rowHtml = r => `<button class="row ${r.done ? '' : 'planned'}" data-act="edit" data-id="${esc(r.id)}">
-      <span class="tile ${r.type}">${icon(guessIcon(r.label, r.type))}</span>
-      <span class="main"><b>${esc(r.label)}</b><span>${r.type === 'in' ? 'Thu nhập' : (r.repeat ? 'Cố định' : 'Phát sinh')} · ${r.done ? (r.type === 'in' ? 'đã nhận' : 'đã chi') : 'dự kiến'}</span></span>
-      <span class="amt ${r.type}">${r.type === 'in' ? '+' : '-'}${vnd(r.amount)}</span></button>`;
+    const rowHtml = r => {
+      const k = D.kindOf(r), plan = r.type === 'plan';
+      const sub = plan ? `Kế hoạch · ${r.done ? 'đã chi' : 'đang tích'}` : `${r.type === 'in' ? 'Thu nhập' : (r.repeat ? 'Cố định' : 'Phát sinh')} · ${r.done ? (r.type === 'in' ? 'đã nhận' : 'đã chi') : 'dự kiến'}`;
+      return `<button class="row ${r.done || k === 'plan' ? '' : 'planned'}" data-act="edit" data-id="${esc(r.id)}" data-month="${ui.month}">
+      <span class="tile ${k}">${icon(plan ? 'target' : guessIcon(r.label, r.type))}</span>
+      <span class="main"><b>${esc(r.label)}</b><span>${sub}</span></span>
+      <span class="amt ${k}">${k === 'in' ? '+' : k === 'out' ? '-' : ''}${vnd(r.amount)}</span></button>`;
+    };
     const dayHtml = date => {
       const items = days.get(date), isToday = isNow && date === todayIso;
       return `<div class="tl-day ${isToday ? 'today' : ''} ${items.length ? '' : 'marker'}">
         <div class="tl-date"><b>${date.slice(8)}</b><small>${weekday(date)}</small></div>
         <div class="tl-rows">${items.length ? items.map(rowHtml).join('') : 'Hôm nay'}</div></div>`;
     };
-    const seg = ['all', 'in', 'out'].map(f => `<button class="${ui.filter === f ? 'on' : ''}" data-act="filter" data-v="${f}">${{ all: 'Tất cả', in: 'Thu', out: 'Chi' }[f]}</button>`).join('');
+    const seg = ['all', 'in', 'out', 'plan'].map(f => `<button class="${ui.filter === f ? 'on' : ''}" data-act="filter" data-v="${f}">${{ all: 'Tất cả', in: 'Thu', out: 'Chi', plan: 'Kế hoạch' }[f]}</button>`).join('');
     const body = rows.length
       ? `<div class="tl">${dates.map(dayHtml).join('')}</div>`
       : `<div class="empty">${all.length ? 'Không có khoản nào trong bộ lọc này.' : 'Chưa có khoản thu chi nào trong tháng này.'}${all.length ? '' : '<button class="btn primary fit" data-act="add">Thêm khoản đầu tiên</button>'}</div>`;
@@ -210,6 +216,7 @@
 
   function assets() {
     const W = D.netWorth(S.accounts);
+    const fund = D.reservedFund(S.entries, curKey);
     const keys = Object.keys(S.history).sort();
     const prev = keys.filter(k => k < curKey).pop();
     const delta = prev !== undefined ? W.net - S.history[prev] : null;
@@ -231,6 +238,7 @@
       ${S.accounts.length ? '' : '<div class="card empty">Thêm tiền mặt, ngân hàng, đầu tư hoặc khoản nợ để thấy tài sản ròng và thanh khoản.</div>'}
       ${list('asset').length ? `<div class="list">${list('asset').map(row).join('')}</div>` : ''}
       ${block('Nợ', list('debt'))}
+      ${fund.total ? `<div class="sec"><h3>Quỹ kế hoạch</h3><span class="muted">${vnd(fund.total)}</span></div><div class="list">${fund.items.map(i => `<button class="row" data-act="edit" data-id="${esc(i.id)}" data-month="${i.month}"><span class="tile plan">${icon('target')}</span><span class="main"><b>${esc(i.label)}${i.count > 1 ? ` ×${i.count}` : ''}</b><span>Chưa chi · nằm trong tài sản</span></span><span class="amt" style="color:var(--ink)">${vnd(i.amount)}</span>${icon('right').replace('class="i"', 'class="i chev"')}</button>`).join('')}</div><p class="hint">Quỹ này đã nằm trong số dư tài khoản của bạn. Thanh khoản tự do = ${vnd(W.liquid - fund.total)}.</p>` : ''}
       ${copyright}`;
   }
 
@@ -262,24 +270,32 @@
   const dateField = (name, value) => `<div class="datebox"><span data-date-text>${dateLabel(value)}</span><input type="date" name="${name}" value="${value}" required></div>`;
 
   // entry (thu / chi)
-  let entryDraft = null;
-  function openEntry(id) {
-    const occ = id ? D.occurrences(S.entries, ui.month).find(r => r.id === id) : null;
+  let entryDraft = null, entryMonth = curKey;
+  function openEntry(id, month) {
+    entryMonth = month || ui.month;
+    const occ = id ? D.occurrences(S.entries, entryMonth).find(r => r.id === id) : null;
     entryDraft = occ
       ? { id, type: occ.type, label: occ.label, amount: occ.amount, date: occ.date, repeat: !!occ.repeat, done: occ.done }
-      : { id: null, type: ui.filter === 'in' ? 'in' : 'out', label: '', amount: '', date: ui.month === curKey ? isoOf(now) : D.dateIn(ui.month, 1), repeat: false, done: false };
+      : { id: null, type: ui.filter === 'in' || ui.filter === 'plan' ? ui.filter : 'out', label: '', amount: '', date: entryMonth === curKey ? isoOf(now) : D.dateIn(entryMonth, 1), repeat: false, done: false };
     paintEntry();
   }
   function paintEntry() {
-    const d = entryDraft, isIn = d.type === 'in';
+    const d = entryDraft, t = d.type;
+    const T = {
+      in: { place: 'VD: Lương, lãi business', date: 'Ngày nhận', repeat: 'Tự xuất hiện ở các tháng sau', done: 'Đã nhận', doneSub: 'Xác nhận khoản này đã thực hiện' },
+      out: { place: 'VD: Tiền nhà, trả góp', date: 'Ngày chi', repeat: 'Tự xuất hiện ở các tháng sau', done: 'Đã chi', doneSub: 'Xác nhận khoản này đã thực hiện' },
+      plan: { place: 'VD: Quỹ đi chơi', date: 'Ngày dự kiến', repeat: 'Tích đều mỗi tháng', done: 'Đã chi', doneSub: 'Chỉ bật khi đã thực sự chi' },
+    }[t];
+    const seg = [['in', 'Thu'], ['out', 'Chi'], ['plan', 'Kế hoạch']].map(([v, l]) => `<button type="button" class="${t === v ? 'on' : ''}" data-act="etype" data-v="${v}">${l}</button>`).join('');
     openSheet(`${sheetHead(d.id ? 'Chỉnh sửa' : 'Thêm khoản')}
-      <div class="seg"><button type="button" class="${isIn ? 'on' : ''}" data-act="etype" data-v="in">Thu</button><button type="button" class="${isIn ? '' : 'on'}" data-act="etype" data-v="out">Chi</button></div>
+      <div class="seg">${seg}</div>
       <form data-form="entry" novalidate>
-        <div class="field"><label>Tên khoản</label><input class="input" name="label" required autocomplete="off" placeholder="${isIn ? 'VD: Lương, lãi business' : 'VD: Tiền nhà, trả góp'}" value="${esc(d.label)}"></div>
+        <div class="field"><label>Tên khoản</label><input class="input" name="label" required autocomplete="off" placeholder="${T.place}" value="${esc(d.label)}"></div>
         <div class="field"><label>Số tiền</label>${moneyField('amount', d.amount)}</div>
-        <div class="field"><label>${isIn ? 'Ngày nhận' : 'Ngày chi'}</label>${dateField('date', d.date)}</div>
-        <label class="switch"><div>Lặp lại hàng tháng<small>Tự xuất hiện ở các tháng sau</small></div><input type="checkbox" name="repeat" ${d.repeat ? 'checked' : ''}></label>
-        <label class="switch"><div>${isIn ? 'Đã nhận' : 'Đã chi'}<small>Xác nhận khoản này đã thực hiện</small></div><input type="checkbox" name="done" ${d.done ? 'checked' : ''}></label>
+        <div class="field"><label>${T.date}</label>${dateField('date', d.date)}</div>
+        <label class="switch"><div>Lặp lại hàng tháng<small>${T.repeat}</small></div><input type="checkbox" name="repeat" ${d.repeat ? 'checked' : ''}></label>
+        <label class="switch"><div>${T.done}<small>${T.doneSub}</small></div><input type="checkbox" name="done" ${d.done ? 'checked' : ''}></label>
+        ${t === 'plan' ? '<p class="hint">Kế hoạch là tiền để dành: chưa tính là chi và vẫn nằm trong tài sản cho tới khi bạn bật Đã chi.</p>' : ''}
         <div class="actions">${d.id ? '<button type="button" class="btn danger fit" data-act="del-entry">Xóa</button>' : ''}<button type="button" class="btn" data-act="close">Huỷ</button><button class="btn primary" type="submit">Lưu</button></div>
       </form>`);
   }
@@ -293,7 +309,7 @@
     if (!Number.isSafeInteger(amount) || amount <= 0) { form.elements.amount.setCustomValidity('Số tiền phải lớn hơn 0'); form.elements.amount.reportValidity(); form.elements.amount.setCustomValidity(''); return; }
     if (!d.date) { form.elements.date.focus(); return; }
     const existing = S.entries.find(e => e.id === d.id);
-    const doneKey = d.repeat ? ui.month : D.monthOf(d.date);
+    const doneKey = d.repeat ? entryMonth : D.monthOf(d.date);
     const doneIn = new Set(existing && existing.repeat && d.repeat ? existing.doneIn : []);
     d.done ? doneIn.add(doneKey) : doneIn.delete(doneKey);
     // a recurring entry keeps its start month; only the day of month changes
@@ -322,8 +338,9 @@
           <input class="range" type="range" min="0" max="${livingCap}" step="100000" value="${Math.min(P.living, livingCap)}" data-living-range style="--p:${Math.min(P.living, livingCap) / livingCap * 100}%">
           <div class="range-lab"><span>0</span><span>${short(livingCap)}</span></div>
         </div>
-        <div class="sumrows" data-net="${P.net}">
+        <div class="sumrows" data-net="${P.net - P.reserve}">
           <div><span>Khả dụng</span><b class="${P.net < 0 ? 'neg' : ''}">${vnd(P.net)}</b></div>
+          ${P.reserve ? `<div><span>Kế hoạch</span><b>${vnd(P.reserve)}</b></div>` : ''}
           <div><span>Sinh hoạt</span><b data-sum-living>${vnd(P.living)}</b></div>
           <div><span data-sum-label>${P.rest < 0 ? 'Thiếu hụt' : 'Chưa phân bổ'}</span><b data-sum-rest class="${P.rest < 0 ? 'neg' : 'ok'}">${vnd(P.rest)}</b></div>
         </div>
@@ -426,7 +443,7 @@
       case 'settings': openSettings(); break;
       case 'living': openLiving(); break;
       case 'add': openEntry(null); break;
-      case 'edit': openEntry(id); break;
+      case 'edit': openEntry(id, el.dataset.month); break;
       case 'etype': entryDraft = { ...readEntry($sheet.querySelector('form')), type: v }; paintEntry(); break;
       case 'del-entry': deleteEntry(); break;
       case 'acc': openAccount(id || null); break;

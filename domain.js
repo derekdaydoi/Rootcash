@@ -12,7 +12,10 @@
     const d = new Date(y, m - 1 + delta, 1);
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
   };
-  const sum = (rows, type) => rows.filter(r => r.type === type).reduce((t, r) => t + Number(r.amount || 0), 0);
+  // Entry types: 'in', 'out', 'plan'. A plan is money set aside: it stays an asset
+  // (not an expense) until it is marked done, then it counts as an outflow.
+  const kindOf = r => r.type === 'plan' ? (r.done ? 'out' : 'plan') : r.type;
+  const sum = (rows, kind) => rows.filter(r => kindOf(r) === kind).reduce((t, r) => t + Number(r.amount || 0), 0);
   const roundUp = (value, step = 500000) => value <= 0 ? 0 : Math.ceil(value / step) * step;
 
   // Entry: { id, type: 'in'|'out', label, amount, date, repeat, doneIn: ['YYYY-MM'] }
@@ -49,6 +52,7 @@
     const inflow = sum(rows, 'in');
     const outflow = sum(rows, 'out');
     const net = inflow - outflow;
+    const reserve = sum(rows, 'plan');
     const livingAmount = livingFor(living, key);
     const drip = livingAmount / n;
     let balance = 0;
@@ -65,12 +69,28 @@
     }
     return {
       key, rows, days: n, points, low,
-      inflow, outflow, net,
+      inflow, outflow, net, reserve,
       living: livingAmount,
-      rest: net - livingAmount,
+      rest: net - livingAmount - reserve,
       buffer: roundUp(-low.balance),
       done: rows.filter(r => r.done).length,
     };
+  }
+
+  // Plan money set aside up to the given month and not yet spent (still part of assets).
+  function reservedFund(entries, key) {
+    const items = [];
+    (entries || []).filter(e => e.type === 'plan').forEach(e => {
+      const start = monthOf(e.date);
+      const months = [];
+      for (let m = start; m <= key && months.length < 600; m = shiftMonth(m, 1)) {
+        months.push(m);
+        if (!e.repeat) break;
+      }
+      const pending = months.filter(m => !(e.doneIn || []).includes(m));
+      if (pending.length) items.push({ id: e.id, label: e.label, month: pending[pending.length - 1], count: pending.length, amount: Number(e.amount || 0) * pending.length });
+    });
+    return { items, total: items.reduce((t, i) => t + i.amount, 0) };
   }
 
   function netWorth(accounts) {
@@ -103,5 +123,5 @@
     return state;
   }
 
-  return { monthOf, daysIn, dateIn, shiftMonth, roundUp, occurrences, livingFor, monthPlan, netWorth, migrateV1 };
+  return { monthOf, daysIn, dateIn, shiftMonth, roundUp, occurrences, livingFor, monthPlan, reservedFund, netWorth, migrateV1, kindOf };
 });

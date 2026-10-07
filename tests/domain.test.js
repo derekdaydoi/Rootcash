@@ -56,4 +56,26 @@ assert.deepStrictEqual(m.entries[0].doneIn, ['2026-10']);
 assert.deepStrictEqual(m.entries[1].doneIn, []);
 assert.strictEqual(m.living['2026-11'], 8);
 
+// plan = money set aside: not an expense until done, stays in the reserved fund
+const withPlan = [
+  { id: 'i', type: 'in', amount: 15000000, date: '2026-10-01', repeat: false, doneIn: [] },
+  { id: 'p', type: 'plan', label: 'Đi chơi', amount: 6000000, date: '2026-10-07', repeat: false, doneIn: [] },
+];
+const pl = D.monthPlan(withPlan, { '2026-10': 5000000 }, '2026-10');
+assert.strictEqual(pl.outflow, 0);
+assert.strictEqual(pl.net, 15000000);
+assert.strictEqual(pl.reserve, 6000000);
+assert.strictEqual(pl.rest, 4000000);
+assert.strictEqual(pl.buffer, 500000, 'only living drip dips below zero on day 1');
+assert.strictEqual(D.reservedFund(withPlan, '2026-10').total, 6000000);
+withPlan[1].doneIn = ['2026-10'];
+const spent = D.monthPlan(withPlan, { '2026-10': 5000000 }, '2026-10');
+assert.strictEqual(spent.outflow, 6000000);
+assert.strictEqual(spent.reserve, 0);
+assert.strictEqual(spent.rest, 4000000);
+assert.strictEqual(D.reservedFund(withPlan, '2026-10').total, 0);
+const monthly = D.reservedFund([{ id: 'm', type: 'plan', label: 'Tích', amount: 2000000, date: '2026-08-05', repeat: true, doneIn: ['2026-09'] }], '2026-10');
+assert.strictEqual(monthly.total, 4000000);
+assert.strictEqual(D.reservedFund([{ id: 'f', type: 'plan', amount: 1, date: '2026-12-01', repeat: false, doneIn: [] }], '2026-10').total, 0);
+
 console.log('Rootcash domain tests: PASS');
