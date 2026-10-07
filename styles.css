@@ -2,12 +2,12 @@
   --bg: #FBF8F2;
   --card: #FFFFFF;
   --line: #EEE9DF;
-  --ink: #17261F;
+  --ink: #0B1F17;
   --muted: #8C918A;
-  --dark: #1F3A30;
-  --dark-2: #2B4B3E;
-  --green: #2E7D4F;
-  --green-tint: #E7F2E8;
+  --dark: #0F3D2E;
+  --dark-2: #1E5A44;
+  --green: #2E7D5B;
+  --green-tint: #EBF5EC;
   --red: #C4473C;
   --red-tint: #FBEAE7;
   --nav-h: 64px;
@@ -23,6 +23,8 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 #app { max-width: 480px; margin: 0 auto; height: 100dvh; position: relative; }
 .scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(env(safe-area-inset-top) + 14px) 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 28px); }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 6px 2px 14px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img { width: 34px; height: 34px; border-radius: 9px; }
 .page-head h1 { margin: 0; font-size: 26px; letter-spacing: -.02em; line-height: 1.15; }
 .month-btn { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; color: var(--muted); font-size: 15px; }
 .month-btn .i { width: 16px; height: 16px; }
@@ -34,7 +36,7 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .hero small { display: block; opacity: .78; font-size: 14px; }
 .hero-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .hero strong { display: block; margin-top: 4px; font-size: 32px; letter-spacing: -.02em; font-weight: 700; }
-.hero .badge { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--dark-2); color: #8EDB9F; flex: none; }
+.hero .badge { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--dark-2); color: #9BE3B8; flex: none; }
 .hero.deficit .badge { color: #FF9C90; }
 .hero .sub { margin-top: 10px; display: flex; gap: 14px; font-size: 13px; opacity: .78; }
 
@@ -116,7 +118,7 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .pair .debt b { color: var(--red); }
 .hero.rel { position: relative; }
 .spark { width: 130px; height: 56px; position: absolute; right: 16px; bottom: 16px; }
-.delta { display: inline-block; margin-top: 6px; font-size: 13px; color: #8EDB9F; }
+.delta { display: inline-block; margin-top: 6px; font-size: 13px; color: #9BE3B8; }
 .delta.down { color: #FF9C90; }
 .sec { display: flex; justify-content: space-between; align-items: center; margin: 18px 2px 6px; }
 .sec h3 { margin: 0; font-size: 15px; }

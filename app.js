@@ -96,7 +96,7 @@
   const plan = () => D.monthPlan(S.entries, S.living, ui.month);
 
   // ---------- views ----------
-  const head = (title, right, sub = '') => `<header class="page-head"><div><h1>${title}</h1>${sub}</div>${right}</header>`;
+  const head = (title, right, sub = '', logo = '') => `<header class="page-head"><div><div class="brand">${logo}<h1>${title}</h1></div>${sub}</div>${right}</header>`;
   const monthBtn = () => `<button class="month-btn" data-act="months">${monthLabel(ui.month)}${icon('down')}</button>`;
   const gearBtn = `<button class="icon-btn" data-act="settings" aria-label="Cài đặt">${icon('gear')}</button>`;
   const copyright = '<p class="copy">© Copyright from Derekdaydoi</p>';
@@ -131,10 +131,10 @@
     const lowDate = `${pad(P.low.day)}/${ui.month.slice(5)}`;
     return `<div class="chart">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-        <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E7D4F" stop-opacity=".22"/><stop offset="1" stop-color="#2E7D4F" stop-opacity="0"/></linearGradient></defs>
+        <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E7D5B" stop-opacity=".22"/><stop offset="1" stop-color="#2E7D5B" stop-opacity="0"/></linearGradient></defs>
         ${grid}
         <path d="${line} L${W},${H} L0,${H} Z" fill="url(#fill)"/>
-        <path d="${line}" fill="none" stroke="#1F3A30" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+        <path d="${line}" fill="none" stroke="#0F3D2E" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
       </svg>
       ${ticks.map(v => `<span class="y-lab" style="top:${Y(v) / H * 100}%">${short(v)}</span>`).join('')}
       ${days.map(d => `<span class="x-lab" style="left:${X(d) / W * 100}%">${d}</span>`).join('')}
@@ -150,7 +150,7 @@
     const hasData = P.rows.length > 0;
     const restNeg = P.rest < 0;
     const liquidOk = W.liquid >= P.buffer;
-    return `${head('Rootcash', gearBtn, monthBtn())}
+    return `${head('Rootcash', gearBtn, monthBtn(), '<img src="icons/logo.svg" alt="">')}
       <section class="hero ${deficit ? 'deficit' : ''}">
         <small>${deficit ? 'Thâm hụt dự kiến' : 'Thặng dư dự kiến'}</small>
         <div class="hero-row"><strong>${deficit ? '- ' : '+ '}${vnd(Math.abs(P.net))}</strong><span class="badge">${icon(deficit ? 'dn' : 'up')}</span></div>
@@ -205,7 +205,7 @@
     const mn = Math.min(...values), mx = Math.max(...values), span = mx - mn || 1;
     const pts = values.map((v, i) => [i / (values.length - 1) * 130, 50 - (v - mn) / span * 42]);
     const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-    return `<svg class="spark" viewBox="0 0 130 56" preserveAspectRatio="none"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8EDB9F" stop-opacity=".35"/><stop offset="1" stop-color="#8EDB9F" stop-opacity="0"/></linearGradient></defs><path d="${line} L130,56 L0,56 Z" fill="url(#sg)"/><path d="${line}" fill="none" stroke="#8EDB9F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+    return `<svg class="spark" viewBox="0 0 130 56" preserveAspectRatio="none"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9BE3B8" stop-opacity=".35"/><stop offset="1" stop-color="#9BE3B8" stop-opacity="0"/></linearGradient></defs><path d="${line} L130,56 L0,56 Z" fill="url(#sg)"/><path d="${line}" fill="none" stroke="#9BE3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
   }
 
   function assets() {

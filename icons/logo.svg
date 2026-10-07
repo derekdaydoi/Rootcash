@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="114" fill="#1F3A30"/>
-  <g fill="none" stroke="#FBF8F2" stroke-width="58" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M150 360V196c0-30 20-50 52-50h108c42 0 66 24 66 58s-24 58-66 58H212"/>
-    <path d="M262 262c28 54 62 86 108 92 24 3 48 0 74-10" stroke-width="54"/>
-  </g>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1D5C45"/><stop offset=".55" stop-color="#0F3D2E"/><stop offset="1" stop-color="#0B2A20"/></linearGradient>
+    <linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F4FBF6"/><stop offset="1" stop-color="#C9E2D2"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="114" fill="url(#bg)"/>
+  <g transform="translate(256 256) scale(.55) translate(-401 -275)" fill="url(#fg)"><path d="M130,55 H370 C440,55 485,110 485,175 C485,230 455,275 418,300 C395,255 350,185 270,183 H130 Q122,183 122,175 V63 Q122,55 130,55 Z"/><path d="M122,487 V320 C122,280 160,255 215,255 C300,255 350,300 395,350 C440,400 490,415 560,412 C610,410 650,405 680,404 C670,430 655,460 640,495 C560,500 470,495 400,450 C340,405 300,335 235,335 C205,335 183,350 183,385 V487 Z"/></g>
 </svg>
