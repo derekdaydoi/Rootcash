@@ -382,30 +382,36 @@
     const fixed = D.occurrences(S.entries, key).filter(r => r.repeat && D.kindOf(r) === 'out');
     const fixedTotal = fixed.reduce((t, r) => t + r.amount, 0);
     const sum = D.monthSummary(S.entries, S.living, key);
+    const neg = sum.rest < 0;
     return `${head('Sinh hoạt', `<button class="icon-btn" data-act="tab" data-v="overview" aria-label="Quay lại">${icon('left')}</button>`, monthBtn())}
       <section class="card" style="padding:14px 15px">
-        <span style="font-size:12.5px;color:var(--muted)">Quỹ sinh hoạt</span>
-        <div class="big"><input data-living-input inputmode="numeric" autocomplete="off" value="${group(amount)}" aria-label="Quỹ sinh hoạt">${icon('pencil')}</div>
+        <span style="font-size:12.5px;color:var(--muted)">Sinh hoạt ước tính ${monthLabel(key).toLowerCase()}</span>
+        <div class="big"><input data-living-input inputmode="numeric" autocomplete="off" value="${group(amount)}" aria-label="Sinh hoạt ước tính">${icon('pencil')}</div>
         <input class="range" type="range" min="0" max="${cap}" step="100000" value="${Math.min(amount, cap)}" data-living-range style="--p:${cap ? Math.min(amount, cap) / cap * 100 : 0}%">
         <div class="range-lab"><span>0</span><b data-per-day>≈ ${group(Math.round(amount / D.daysIn(key)))}đ / ngày</b><span>${short(cap)}</span></div>
       </section>
+      <section class="sumrows">
+        <div><span>Tổng thu</span><b class="ok">+${group(sum.inflow)}đ</b></div>
+        <div><span>Tổng chi</span><b class="neg">−${group(sum.outflow)}đ</b></div>
+        ${sum.reserve ? `<div><span>Kế hoạch để dành</span><b class="neg">−${group(sum.reserve)}đ</b></div>` : ''}
+        <div><span>Sinh hoạt ước tính</span><b class="neg">−${group(amount)}đ</b></div>
+        <div class="total"><span>${neg ? 'Thiếu hụt' : 'Còn lại'}</span><b class="${neg ? 'neg' : 'ok'}">${sum.rest >= 0 ? '+' : '−'}${group(sum.rest)}đ</b></div>
+      </section>
+      <p class="hint">Sinh hoạt ước tính là mức bạn tự đặt, không phải khoản chi trong dòng tiền. Tháng chưa đặt sẽ dùng mức gần nhất.</p>
+      <div class="sec"><h3>Chia nhỏ (tuỳ chọn)</h3><button class="link" data-act="add-bucket">+ Thêm mục</button></div>
       <section class="card" style="padding:3px 15px">
         ${S.buckets.map(b => {
           const v = Number(alloc[b]) || 0;
           return `<div class="alloc"><button data-act="rename" data-v="${esc(b)}"><b>${esc(b)}</b></button><button data-act="set-alloc" data-v="${esc(b)}"><b>${vnd(v)}</b></button><div class="bar"><i style="width:${pct(v, amount)}%"></i></div></div>`;
         }).join('')}
-        <div class="alloc"><b style="color:${left < 0 ? 'var(--red)' : 'var(--green)'}">${left < 0 ? 'Vượt quỹ' : 'Chưa phân bổ'}</b><b style="color:${left < 0 ? 'var(--red)' : 'var(--green)'}">${vnd(left)}</b></div>
+        <div class="alloc"><b style="color:${left < 0 ? 'var(--red)' : 'var(--green)'}">${left < 0 ? 'Vượt mức' : 'Chưa chia'}</b><b style="color:${left < 0 ? 'var(--red)' : 'var(--green)'}">${vnd(left)}</b></div>
       </section>
-      <button class="link" style="display:block;margin:0 0 12px 2px" data-act="add-bucket">+ Thêm mục</button>
-      ${fixed.length ? `<section class="card" style="padding:12px 15px">
+      <p class="hint">Chia nhỏ chỉ để bạn hình dung, không ảnh hưởng phép tính ở trên. Đổi mức sinh hoạt thì các mục về 0.</p>
+      ${fixed.length ? `<section class="card" style="margin-top:12px;padding:12px 15px">
         <div class="card-head" style="min-height:0;margin-bottom:3px"><h3>Cố định (lặp hàng tháng)</h3><b>${vnd(fixedTotal)}</b></div>
         ${fixed.map(r => `<div class="fixed"><span>${esc(r.label)}</span><span>${group(r.amount)}đ</span></div>`).join('')}
-      </section>` : ''}
-      <section class="hero" style="margin:0">
-        <small>Sau mọi khoản chi và sinh hoạt, tháng ${Number(key.slice(5))} còn</small>
-        <div class="hero-row"><strong style="font-size:27px">${sum.rest >= 0 ? '+' : ''}${vnd(sum.rest)}</strong></div>
-      </section>
-      <p class="hint">Quỹ này chỉ là mức bạn tự đặt, không phải khoản chi trong dòng tiền. Tháng chưa đặt sẽ dùng mức gần nhất.</p>`;
+        <p class="hint" style="margin-bottom:0">Các khoản này đã nằm trong Tổng chi, không cộng thêm vào sinh hoạt.</p>
+      </section>` : ''}`;
   }
 
   const VIEWS = { overview, flow, assets, living: livingScreen };
@@ -687,7 +693,10 @@
 
   // living helpers
   function setLiving(value) {
-    S.living[ui.month] = Math.max(0, Math.round(value) || 0);
+    const next = Math.max(0, Math.round(value) || 0);
+    // a new estimate starts unsplit, so an old split never shows as a shortfall
+    if (D.livingFor(S.living, ui.month) !== next) S.allocations[ui.month] = {};
+    S.living[ui.month] = next;
     save();
   }
   function syncLiving(value, from) {

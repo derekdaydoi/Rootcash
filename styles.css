@@ -265,3 +265,14 @@ select.input { background-image: linear-gradient(45deg, transparent 50%, #8C918A
 @keyframes up { from { transform: translateY(24px); opacity: 0; } }
 @keyframes fade { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+.sumrows { background: var(--card); border: 1px solid var(--line); border-radius: 19px; padding: 2px 15px; margin-bottom: 11px; }
+.sumrows div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 11px 0; font-size: 13.5px; }
+.sumrows div + div { border-top: 1px solid var(--line); }
+.sumrows span { color: var(--muted); }
+.sumrows b { font-weight: 600; letter-spacing: -.01em; }
+.sumrows b.ok { color: var(--green); }
+.sumrows b.neg { color: var(--red); }
+.sumrows .total { border-top: 1.5px solid var(--ink); }
+.sumrows .total span { color: var(--ink); font-weight: 600; font-size: 14.5px; }
+.sumrows .total b { font-size: 17px; }
