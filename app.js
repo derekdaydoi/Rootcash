@@ -122,68 +122,50 @@
   };
 
   // ---------- chart ----------
+  // One continuous balance line: flat between transactions, a jump on the day
+  // money moves. Only the dip and the final balance carry a number.
   function chart(points) {
-    const W = 300, H = 168, PT = 10;
-    const nodes = points.filter((p, i) => i === 0 || p.rows.length);
+    const W = 300, H = 180, PT = 14;
+    const n = points.length;
     const vals = points.map(p => p.bal).concat(points.map(p => p.trough), 0);
     const span = Math.max(...vals) - Math.min(...vals);
     const magnitude = 10 ** Math.floor(Math.log10(Math.max(span / 4, 1)));
     const step = [1, 2, 2.5, 5, 10].map(f => f * magnitude).find(s => s >= span / 4) || magnitude;
     const ylo = Math.floor(Math.min(...vals) / step) * step;
     const yhi = Math.ceil(Math.max(...vals) / step) * step || step;
-    const X = i => i / (points.length - 1) * W;
+    const X = i => n < 2 ? W / 2 : i / (n - 1) * W;
     const Y = v => PT + (yhi - v) / (yhi - ylo || 1) * (H - PT);
     const low = D.lowestOf(points);
-    const last = points[points.length - 1];
+    const lowI = points.indexOf(low);
+    const last = points[n - 1];
 
-    let path = `M${X(0).toFixed(1)},${Y(points[0].bal).toFixed(1)}`;
-    let prev = points[0];
-    nodes.slice(1).forEach(p => {
-      const i = points.indexOf(p);
-      path += ` L${X(i).toFixed(1)},${Y(prev.bal).toFixed(1)} L${X(i).toFixed(1)},${Y(p.bal).toFixed(1)}`;
-      prev = p;
-    });
-    path += ` L${W},${Y(prev.bal).toFixed(1)}`;
+    let path = '';
+    points.forEach((p, i) => { path += `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.bal).toFixed(1)} `; });
 
-    const doneTo = points.reduce((acc, p, i) => p.rows.length && p.rows.every(r => r.done) ? i : acc, 0);
-    const splitX = Math.max(X(doneTo), 0.5);
-
-    let grid = '', bands = '', labs = '';
+    let grid = '', labs = '';
     for (let v = ylo; v <= yhi + 1; v += step) {
       grid += `<line x1="0" x2="${W}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? '#C9BFAE' : '#EFEADF'}" ${v === 0 ? 'stroke-dasharray="3 3"' : ''} vector-effect="non-scaling-stroke"/>`;
       labs += `<span class="y-lab" style="top:${Y(v) / H * 100}%">${v === 0 ? '0' : short(v)}</span>`;
     }
-    const months = [...new Set(points.map(p => p.month))];
-    months.forEach((key, k) => {
+    [...new Set(points.map(p => p.month))].forEach(key => {
       const first = points.findIndex(p => p.month === key);
-      const lastI = points.length - 1 - [...points].reverse().findIndex(p => p.month === key);
-      const x1 = X(first), x2 = X(lastI);
-      if (k % 2) bands += `<rect x="${x1}" y="${PT}" width="${x2 - x1}" height="${H - PT}" fill="#0B1F17" opacity=".022"/>`;
-      labs += `<span class="x-lab" style="left:${(x1 + x2) / 2 / W * 100}%;top:${H + 7}px">${monthShort(key)}</span>`;
+      const lastI = n - 1 - [...points].reverse().findIndex(p => p.month === key);
+      labs += `<span class="x-lab" style="left:${(X(first) + X(lastI)) / 2 / W * 100}%;top:${H + 8}px">${monthShort(key)}</span>`;
     });
-    const dots = nodes.slice(1).filter(p => p !== low).map(p =>
-      `<circle cx="${X(points.indexOf(p)).toFixed(1)}" cy="${Y(p.bal).toFixed(1)}" r="2.5" fill="#FBF8F2" stroke="${p.bal < 0 ? '#C4473C' : '#0F3D2E'}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`).join('');
-    const lowX = X(points.indexOf(low)), lowY = Y(low.trough);
-    const lowBelow = lowY < H * 0.6;
 
+    const lowColor = low.trough < 0 ? '#C4473C' : '#0F3D2E';
     return `<div class="chartbox">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-        <defs>
-          <clipPath id="cl"><rect x="-6" y="-30" width="${splitX + 6}" height="${H + 60}"/></clipPath>
-          <clipPath id="cr"><rect x="${splitX}" y="-30" width="${W - splitX + 6}" height="${H + 60}"/></clipPath>
-          <linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E7D5B" stop-opacity=".16"/><stop offset="1" stop-color="#2E7D5B" stop-opacity="0"/></linearGradient>
-        </defs>
-        ${bands}${grid}
-        ${ylo < 0 ? `<rect x="0" y="${Y(0)}" width="${W}" height="${H - Y(0)}" fill="#EFB3AB" opacity=".3"/>` : ''}
-        <path d="${path} L${W},${Y(ylo)} L0,${Y(ylo)} Z" fill="url(#gf)"/>
-        <path d="${path}" fill="none" stroke="#0F3D2E" stroke-width="2.4" stroke-linejoin="round" clip-path="url(#cl)" vector-effect="non-scaling-stroke"/>
-        <path d="${path}" fill="none" stroke="#0F3D2E" stroke-width="2" stroke-dasharray="4.5 3.5" stroke-linejoin="round" clip-path="url(#cr)" vector-effect="non-scaling-stroke"/>
-        ${dots}
-        <circle cx="${lowX.toFixed(1)}" cy="${lowY.toFixed(1)}" r="4" fill="${low.trough < 0 ? '#C4473C' : '#0F3D2E'}" stroke="#FBF8F2" stroke-width="2" vector-effect="non-scaling-stroke"/>
+        <defs><linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E7D5B" stop-opacity=".18"/><stop offset="1" stop-color="#2E7D5B" stop-opacity="0"/></linearGradient></defs>
+        ${grid}
+        ${ylo < 0 ? `<rect x="0" y="${Y(0)}" width="${W}" height="${H - Y(0)}" fill="#EFB3AB" opacity=".28"/>` : ''}
+        <path d="${path}L${W},${Y(ylo)} L0,${Y(ylo)} Z" fill="url(#gf)"/>
+        <path d="${path}" fill="none" stroke="#0F3D2E" stroke-width="2.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+        <circle cx="${X(lowI).toFixed(1)}" cy="${Y(low.trough).toFixed(1)}" r="4" fill="${lowColor}" stroke="#FBF8F2" stroke-width="2" vector-effect="non-scaling-stroke"/>
       </svg>
       ${labs}
-      <span class="pt-lab pill" style="left:${lowX / W * 100}%;top:${lowY / H * 100}%;color:${low.trough < 0 ? '#C4473C' : '#0F3D2E'};transform:translate(-14%,${lowBelow ? '58%' : '-150%'})">${tr(low.trough)} · ${dayMonth(low.iso)}</span>
-      <span class="pt-lab pill" style="left:100%;top:${Y(last.bal) / H * 100}%;transform:translate(-100%,-135%);color:#0F3D2E">${tr(last.bal)}</span>
+      <span class="pt-lab pill" style="left:${clamp(X(lowI) / W * 100, 16, 84)}%;top:${Y(low.trough) / H * 100}%;transform:translate(-50%,0);margin-top:8px;color:${lowColor}">${tr(low.trough)} · ${dayMonth(low.iso)}</span>
+      <span class="pt-lab pill" style="left:100%;top:${Y(last.bal) / H * 100}%;transform:translate(-100%,-100%);margin-top:-7px;color:#0F3D2E">${tr(last.bal)}</span>
     </div>`;
   }
 
@@ -211,7 +193,7 @@
         <div class="card-head"><h3>Dòng tiền liên tháng</h3>
           <div class="seg2">${[3, 6].map(r => `<button class="${ui.range === r ? 'on' : ''}" data-act="range" data-v="${r}">${r}T</button>`).join('')}</div>
         </div>
-        <div class="lg"><span><i></i>Đã chốt</span><span><i class="d"></i>Dự kiến</span><span><i class="r"></i>Dưới 0</span></div>
+        <div class="lg"><span><i></i>Số dư cuối ngày</span>${low.trough < 0 ? '<span><i class="r"></i>Dưới 0</span>' : ''}</div>
         ${chart(points)}
         <div class="scrub">
           <div><span>Ngày thấp nhất</span><b>${dayMonth(low.iso)}</b></div>
