@@ -525,7 +525,7 @@
         ${d.type === 'plan' ? '<p class="hint">Kế hoạch là tiền để dành: chưa tính là chi và vẫn nằm trong tài sản cho tới khi bạn bật Đã chi.</p>' : ''}
         ${d.id && d.repeat
           ? `<div class="actions"><button type="button" class="btn" data-act="save-month">Chỉ tháng này</button><button class="btn primary" type="submit">Từ tháng này trở đi</button></div>
-             <div class="actions"><button type="button" class="btn danger" data-act="del-entry">Xóa khoản</button></div>`
+             <div class="actions center"><button type="button" class="btn ghost" data-act="del-entry">Xóa khoản</button></div>`
           : `<div class="actions">${d.id ? '<button type="button" class="btn danger fit" data-act="del-entry">Xóa</button>' : '<button type="button" class="btn" data-act="close">Huỷ</button>'}<button class="btn primary" type="submit">Lưu</button></div>`}
       </form>`);
   }
