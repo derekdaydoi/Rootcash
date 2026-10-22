@@ -135,4 +135,34 @@ assert.strictEqual(v2.living['2026-10'], 5);
 assert.deepStrictEqual(D.migrate(null).entries, []);
 assert.strictEqual(D.migrate({ entries: [{ id: 'bad', date: 'nope' }] }).entries.length, 0, 'invalid dates are dropped');
 
+// ---- a repeating entry can have a last instalment ----
+const ending = [entry({ id: 'u', type: 'out', amount: 1326051, date: '2026-11-14', repeat: true, until: '2028-02' })];
+assert.strictEqual(D.occurrences(ending, '2028-02').length, 1, 'the final month still bills');
+assert.strictEqual(D.occurrences(ending, '2028-03').length, 0, 'and nothing after it');
+assert.strictEqual(D.occurrences([entry({ id: 'f', type: 'out', amount: 1, date: '2026-11-01', repeat: true })], '2099-01').length, 1,
+  'without an end date a flat repeat runs forever');
+
+// ---- Tech 1: principal instalment plus interest on the declining balance ----
+// Verified against the real October payment: 5.000.000 + 15tr x 16%/12 = 5.200.000
+const tech1 = entry({ id: 'T1', type: 'out', label: 'Tech 1', amount: 0, date: '2026-11-07', repeat: true,
+  loan: { principal: 10000000, rate: 16, amortize: 5000000, withPrincipal: true } });
+assert.strictEqual(D.amountFor(tech1, '2026-11'), 5133333);
+assert.strictEqual(D.amountFor(tech1, '2026-12'), 5066667);
+assert.strictEqual(D.occurrences([tech1], '2026-12').length, 1, 'December is the maturity month');
+assert.strictEqual(D.occurrences([tech1], '2027-01').length, 0, 'the loan ends by itself once the principal is gone');
+// interest only: the same loan without the principal instalment
+const interestOnly = { ...tech1, loan: { ...tech1.loan, withPrincipal: false } };
+assert.strictEqual(D.amountFor(interestOnly, '2026-11'), 133333);
+// a last instalment smaller than the usual one is capped at the remaining principal
+const tail = entry({ id: 'T3', type: 'out', amount: 0, date: '2026-11-01', repeat: true,
+  loan: { principal: 7000000, rate: 0, amortize: 5000000, withPrincipal: true } });
+assert.strictEqual(D.amountFor(tail, '2026-11'), 5000000);
+assert.strictEqual(D.amountFor(tail, '2026-12'), 2000000, 'the tail pays only what is left');
+
+// an interest-only loan never clears itself, so it needs an end month
+const revolving = entry({ id: 'T2', type: 'out', amount: 0, date: '2026-11-07', repeat: true,
+  loan: { principal: 30000000, rate: 16, amortize: 0, withPrincipal: false }, until: '2026-12' });
+assert.strictEqual(D.amountFor(revolving, '2027-06'), 400000, 'interest stays flat');
+assert.strictEqual(D.occurrences([revolving], '2027-06').length, 0, 'but the end month stops it');
+
 console.log('Rootcash domain tests: PASS');

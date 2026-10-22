@@ -471,14 +471,14 @@
         id, type: e.type, label: e.label, amount: row ? row.amount : e.amount,
         date: row ? row.date : e.date, repeat: !!e.repeat, done: row ? row.done : false,
         month: key, loan: e.loan ? { ...e.loan } : null, useLoan: !!e.loan,
-        skip: (e.skip || []).includes(key),
+        skip: (e.skip || []).includes(key), until: e.until || '',
       };
     } else {
       const start = ui.tab === 'flow' && ui.view === 'cal' ? ui.month : curKey;
       draft = {
         id: null, type: ui.filter === 'in' || ui.filter === 'plan' ? ui.filter : 'out',
         label: '', amount: '', date: start === curKey ? todayIso : D.dateIn(start, 1),
-        repeat: false, done: false, month: start, loan: null, useLoan: false, skip: false,
+        repeat: false, done: false, month: start, loan: null, useLoan: false, skip: false, until: '',
       };
     }
     paintEntry();
@@ -494,12 +494,14 @@
     let preview = '';
     if (loanable && d.useLoan && d.loan) {
       const probe = { date: `${D.monthOf(d.date)}-01`, loan: d.loan, override: {} };
+      const head = d.loan.withPrincipal ? 'gốc + lãi' : 'lãi';
       preview = '<table class="mini">' + [0, 1, 2, 3, 4].map(k => {
         const m = D.shiftMonth(d.month, k);
         const left = D.principalAt(probe, m);
         if (left <= 0) return '';
-        return `<tr class="${k ? '' : 'hl'}"><td>${monthLabel(m).replace(', ' + m.slice(0, 4), '')} · gốc ${tr(left)}</td><td>${group(D.amountFor(probe, m))}đ</td></tr>`;
-      }).join('') + '</table>';
+        return `<tr class="${k ? '' : 'hl'}"><td>Tháng ${Number(m.slice(5))} · dư nợ ${tr(left)}</td><td>${group(D.amountFor(probe, m))}đ</td></tr>`;
+      }).join('') + '</table>' + `<p class="hint">Bảng trên là ${head} mỗi tháng. ${
+        Number(d.loan.amortize) > 0 ? 'Hết gốc thì khoản này tự biến mất.' : 'Lãi phẳng vì không trả gốc, nên cần đặt kỳ cuối.'}</p>`;
     }
     openSheet(`${sheetHead(d.id ? 'Chỉnh sửa' : 'Thêm khoản')}
       <div class="seg">${[['in', 'Thu'], ['out', 'Chi'], ['plan', 'Kế hoạch']].map(([v, l]) =>
@@ -509,12 +511,14 @@
         ${loanable && d.useLoan ? '' : `<div class="field"><label>Số tiền</label>${moneyField('amount', d.amount)}</div>`}
         <div class="field"><label>${T.date}</label>${dateField('date', d.date)}</div>
         <label class="switch"><div>Lặp lại hàng tháng<small>${T.repeat}</small></div><input type="checkbox" name="repeat" data-act="erepeat" ${d.repeat ? 'checked' : ''}></label>
+        ${d.repeat ? `<div class="field"><label>Kỳ cuối (để trống nếu không có hạn)</label><input class="input" name="until" type="month" value="${esc(d.until)}" placeholder="2028-02"></div>` : ''}
         ${loanable ? `<label class="switch"><div>Tự tính theo dư nợ<small>Lãi giảm dần theo gốc còn lại</small></div><input type="checkbox" name="useLoan" data-act="eloan" ${d.useLoan ? 'checked' : ''}></label>` : ''}
         ${loanable && d.useLoan ? `<div class="two">
             <div class="field"><label>Dư nợ gốc</label>${moneyField('principal', d.loan.principal)}</div>
             <div class="field"><label>Lãi suất / năm (%)</label><input class="input" name="rate" inputmode="decimal" autocomplete="off" value="${d.loan.rate || ''}" placeholder="20"></div>
           </div>
           <div class="field"><label>Trả gốc mỗi tháng</label>${moneyField('amortize', d.loan.amortize)}</div>
+          <label class="switch"><div>Gồm cả gốc<small>Số tiền ra khỏi tài khoản là gốc + lãi</small></div><input type="checkbox" name="withPrincipal" data-act="ewp" ${d.loan.withPrincipal ? 'checked' : ''}></label>
           ${preview}` : ''}
         <label class="switch" style="margin-top:9px"><div>${T.done}<small>${T.sub}</small></div><input type="checkbox" name="done" ${d.done ? 'checked' : ''}></label>
         ${d.id && d.repeat ? `<label class="switch"><div>Bỏ qua tháng ${Number(d.month.slice(5))}<small>Khoản này không xuất hiện trong tháng ${Number(d.month.slice(5))}</small></div><input type="checkbox" name="skip" ${d.skip ? 'checked' : ''}></label>` : ''}
@@ -531,6 +535,7 @@
     d.label = String(f.get('label') || '').trim();
     d.date = String(f.get('date') || '');
     d.repeat = form.elements.repeat.checked;
+    d.until = form.elements.until ? form.elements.until.value.slice(0, 7) : '';
     d.done = form.elements.done.checked;
     d.skip = form.elements.skip ? form.elements.skip.checked : false;
     d.useLoan = form.elements.useLoan ? form.elements.useLoan.checked : false;
@@ -539,6 +544,7 @@
         principal: Number(digits(f.get('principal'))) || 0,
         rate: Number(String(f.get('rate') || '').replace(',', '.')) || 0,
         amortize: Number(digits(f.get('amortize'))) || 0,
+        withPrincipal: form.elements.withPrincipal ? form.elements.withPrincipal.checked : false,
       };
       d.amount = 0;
     } else {
@@ -567,6 +573,7 @@
       S.entries.push({
         id: uid(), type: d.type, label: d.label, amount, date: d.date, repeat: d.repeat,
         doneIn: d.done ? [month] : [], skip: [], override: {}, loan: d.useLoan ? d.loan : null,
+        until: d.repeat && /^\d{4}-\d{2}$/.test(d.until) ? d.until : null,
       });
     } else {
       // "Chỉ tháng này" writes an override; the base entry keeps its own amount.
@@ -591,6 +598,7 @@
       existing.type = d.type;
       existing.label = d.label;
       existing.repeat = d.repeat;
+      existing.until = d.repeat && /^\d{4}-\d{2}$/.test(d.until) ? d.until : null;
       existing.loan = d.useLoan ? d.loan : null;
       if (d.useLoan) existing.amount = 0;
       // the date's day-of-month moves; a repeating entry keeps its start month
@@ -740,6 +748,11 @@
       case 'eloan': {
         const next = { ...readEntry($sheet.querySelector('form')), useLoan: el.checked };
         if (el.checked && !next.loan) next.loan = { principal: 0, rate: 0, amortize: 0 };
+        draft = next; paintEntry(); break;
+      }
+      case 'ewp': {
+        const next = readEntry($sheet.querySelector('form'));
+        next.loan = { ...(next.loan || { principal: 0, rate: 0, amortize: 0 }), withPrincipal: el.checked };
         draft = next; paintEntry(); break;
       }
       case 'save-month': saveEntry($sheet.querySelector('form'), true); break;

@@ -26,19 +26,6 @@
   const kindOf = row => row.type === 'plan' ? (row.done ? 'out' : 'plan') : row.type;
   const sum = (rows, kind) => rows.filter(r => kindOf(r) === kind).reduce((t, r) => t + Number(r.amount || 0), 0);
 
-  // What a repeating entry costs in a given month:
-  //   an override wins, then a loan schedule (declining balance), then the flat amount.
-  function amountFor(entry, key) {
-    const over = entry.override && entry.override[key];
-    if (over != null && over !== '') return Math.round(Number(over)) || 0;
-    if (entry.loan) {
-      const k = Math.max(0, monthsBetween(monthOf(entry.date), key));
-      const left = Math.max(0, Number(entry.loan.principal || 0) - k * Number(entry.loan.amortize || 0));
-      return Math.round(left * Number(entry.loan.rate || 0) / 1200);
-    }
-    return Math.round(Number(entry.amount || 0)) || 0;
-  }
-
   // Principal still owed on a loan-backed entry at the start of a month.
   function principalAt(entry, key) {
     if (!entry.loan) return 0;
@@ -46,17 +33,33 @@
     return Math.max(0, Number(entry.loan.principal || 0) - k * Number(entry.loan.amortize || 0));
   }
 
+  // What a repeating entry costs in a given month:
+  //   an override wins, then a loan schedule (declining balance), then the flat amount.
+  function amountFor(entry, key) {
+    const over = entry.override && entry.override[key];
+    if (over != null && over !== '') return Math.round(Number(over)) || 0;
+    if (entry.loan) {
+      const left = principalAt(entry, key);
+      const interest = left * Number(entry.loan.rate || 0) / 1200;
+      const due = entry.loan.withPrincipal ? Math.min(Number(entry.loan.amortize || 0), left) : 0;
+      return Math.round(interest + due);
+    }
+    return Math.round(Number(entry.amount || 0)) || 0;
+  }
+
+
   // Every entry that lands in a month, with amount and done flag resolved.
   function occurrences(entries, key) {
     const rows = [];
     (entries || []).forEach(e => {
       const start = monthOf(e.date);
       if (e.repeat ? start > key : start !== key) return;
+      if (e.repeat && e.until && key > e.until) return; // last instalment has passed
       if ((e.skip || []).includes(key)) return;
       const amount = amountFor(e, key);
-      if (e.repeat && e.loan && amount <= 0) return; // loan fully repaid
+      if (e.repeat && e.loan && Number(e.loan.amortize) > 0 && principalAt(e, key) <= 0) return; // fully repaid
       rows.push({
-        id: e.id, type: e.type, label: e.label, repeat: !!e.repeat, loan: e.loan || null,
+        id: e.id, type: e.type, label: e.label, repeat: !!e.repeat, loan: e.loan || null, until: e.until || null,
         amount, month: key,
         date: e.repeat ? dateIn(key, dayOf(e.date)) : e.date,
         done: (e.doneIn || []).includes(key),
@@ -131,6 +134,7 @@
       if (start > key) return;
       const months = [];
       for (let m = start; m <= key && months.length < 600; m = shiftMonth(m, 1)) {
+        if (e.until && m > e.until) break;
         if (!(e.skip || []).includes(m)) months.push(m);
         if (!e.repeat) break;
       }
@@ -164,6 +168,7 @@
         amount: Math.round(Number(e.amount)) || 0,
         date: e.date,
         repeat: !!e.repeat,
+        until: /^\d{4}-\d{2}$/.test(String(e.until || '')) ? e.until : null,
         doneIn: Array.isArray(e.doneIn) ? e.doneIn.slice() : [],
         skip: Array.isArray(e.skip) ? e.skip.slice() : [],
         override: e.override && typeof e.override === 'object' ? { ...e.override } : {},
@@ -171,6 +176,7 @@
           principal: Number(e.loan.principal) || 0,
           rate: Number(e.loan.rate) || 0,
           amortize: Number(e.loan.amortize) || 0,
+          withPrincipal: !!e.loan.withPrincipal,
         } : null,
       }));
       state.living = raw.living && typeof raw.living === 'object' ? { ...raw.living } : {};
@@ -187,7 +193,7 @@
       state.entries.push({
         id: item.id || `m_${state.entries.length}`,
         type, label: String(item.label || ''), amount: Math.round(Number(item.amount)) || 0,
-        date: item.date, repeat: false, doneIn: done ? [monthOf(item.date)] : [],
+        date: item.date, repeat: false, until: null, doneIn: done ? [monthOf(item.date)] : [],
         skip: [], override: {}, loan: null,
       });
     };
