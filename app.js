@@ -37,6 +37,7 @@
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     save: '<path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>',
     load: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 13v7h14v-7"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   };
   const icon = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 
@@ -179,7 +180,7 @@
   const group3 = (kind, title, addLabel, totalCls) => {
     const list = listOf(kind);
     const total = list.filter(i => D.activeIn(i, curKey)).reduce((t, i) => t + i.amount * (kind === 'in' ? 1 : -1), 0);
-    return `<div class="sec"><h2>${title}</h2>${kind === 'once' ? '<span>chỉ rơi vào 1 ngày</span>' : `<b class="${totalCls}">${signed(total)}</b>`}</div>
+    return `<div class="sec"><h2>${title}</h2>${kind === 'once' ? '<span>chỉ rơi vào 1 ngày</span>' : `<b class="${total ? totalCls : ''}">${total ? signed(total) : '0đ'}</b>`}</div>
       <section class="card list">${list.map(itemRow).join('')}
         <button class="add" data-act="add" data-v="${kind}">${icon('plus')}${addLabel}</button></section>`;
   };
@@ -205,6 +206,11 @@
         <p>Dữ liệu chỉ nằm trên máy này. Xoá icon khỏi màn hình chính là mất, nên lưu một bản ra Tệp / iCloud thỉnh thoảng.</p>
         <div class="actions"><button class="btn primary" data-act="export">${icon('save')}Lưu bản sao lưu</button>
           <label class="btn">${icon('load')}Khôi phục<input type="file" accept="application/json,.json" data-import hidden></label></div>
+      </section>
+      <div class="sec"><h2>Làm lại từ đầu</h2></div>
+      <section class="card backup">
+        <p>Xoá hết khung, số dư và sinh hoạt trên máy này để nhập lại. Nên lưu bản sao lưu trước.</p>
+        <button class="btn danger wide" data-act="clear">${icon('trash')}Xoá toàn bộ dữ liệu</button>
       </section>
       ${footer}`;
   }
@@ -340,6 +346,14 @@
         }
         break;
       case 'export': exportBackup(); break;
+      case 'clear':
+        if (confirm('Xoá toàn bộ dữ liệu trên máy này?') && confirm('Xác nhận lần cuối: không thể khôi phục nếu chưa có bản sao lưu.')) {
+          S = D.migrate(null);
+          // drop the earlier data too, so it is not converted back in on the next launch
+          [OLD_KEY, 'rootcash:v1'].forEach(k => { try { localStorage.removeItem(k); } catch { /* ignore */ } });
+          save(); setMonth(curKey); ui.seg = 'fixed'; render(false); toast('Đã xoá toàn bộ dữ liệu');
+        }
+        break;
       case 'close': closeSheet(); break;
     }
   });

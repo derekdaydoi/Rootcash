@@ -30,7 +30,8 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .neg { color: var(--red); }
 
 #app { max-width: 480px; margin: 0 auto; height: 100dvh; position: relative; }
-.scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(env(safe-area-inset-top) + 8px) 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 24px); display: flex; flex-direction: column; gap: 11px; }
+/* iOS blurs the strip under the status bar, so the first line starts well below it */
+.scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(env(safe-area-inset-top) + 30px) 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 24px); display: flex; flex-direction: column; gap: 11px; }
 
 /* headers */
 .mnav { display: flex; align-items: center; justify-content: space-between; }
@@ -132,6 +133,7 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .btn .i { width: 18px; height: 18px; }
 .btn.primary { background: var(--dark); color: #fff; }
 .btn.danger { color: var(--red); background: var(--red-tint); }
+.btn.wide { width: 100%; }
 
 /* nav */
 .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; justify-content: center; background: #FBF8F2ee; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
