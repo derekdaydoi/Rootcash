@@ -1,168 +1,103 @@
 const assert = require('assert');
 const D = require('../domain.js');
 
-const entry = (o) => ({ repeat: false, doneIn: [], skip: [], override: {}, loan: null, ...o });
-
 // ---- dates ----
-assert.strictEqual(D.dateIn('2026-02', 31), '2026-02-28', 'day is clamped to the month length');
 assert.strictEqual(D.shiftMonth('2026-12', 1), '2027-01');
-assert.strictEqual(D.shiftMonth('2026-01', -1), '2025-12');
 assert.strictEqual(D.monthsBetween('2026-10', '2027-01'), 3);
-assert.strictEqual(D.monthsBetween('2026-10', '2026-10'), 0);
-assert.strictEqual(D.roundUp(1), 500000);
-assert.strictEqual(D.roundUp(0), 0);
+assert.strictEqual(D.daysIn('2026-02'), 28);
+assert.strictEqual(D.weekday('2026-11', 1), 0, '1/11/2026 is a Sunday');
 
-// ---- recurring entries ----
-const base = [
-  entry({ id: 'i', type: 'in', label: 'Lương', amount: 17948375, date: '2026-10-09', repeat: true }),
-  entry({ id: 'o', type: 'out', label: 'Nhà', amount: 1200000, date: '2026-10-01', repeat: true }),
-  entry({ id: 'x', type: 'out', label: 'Một lần', amount: 500000, date: '2026-10-20' }),
-];
-assert.strictEqual(D.occurrences(base, '2026-09').length, 0, 'nothing before the start month');
-assert.strictEqual(D.occurrences(base, '2026-10').length, 3);
-assert.strictEqual(D.occurrences(base, '2026-11').length, 2, 'only repeating entries carry forward');
-assert.deepStrictEqual(D.occurrences(base, '2026-10').map(r => r.id), ['o', 'i', 'x'], 'same day: outflow first');
-
-// skip a single month
-const skipped = [entry({ id: 's', type: 'out', amount: 100, date: '2026-10-01', repeat: true, skip: ['2026-11'] })];
-assert.strictEqual(D.occurrences(skipped, '2026-11').length, 0);
-assert.strictEqual(D.occurrences(skipped, '2026-12').length, 1);
-
-// override one month only
-const over = [entry({ id: 'v', type: 'out', amount: 100, date: '2026-10-01', repeat: true, override: { '2026-11': 250 } })];
-assert.strictEqual(D.occurrences(over, '2026-10')[0].amount, 100);
-assert.strictEqual(D.occurrences(over, '2026-11')[0].amount, 250);
-assert.strictEqual(D.occurrences(over, '2026-12')[0].amount, 100, 'an override does not leak into later months');
-
-// ---- loan with a declining balance ----
-const loan = entry({ id: 'l', type: 'out', label: 'Lãi Tech', amount: 0, date: '2026-11-08', repeat: true,
-  loan: { principal: 107000000, rate: 20, amortize: 5000000 } });
-assert.strictEqual(D.amountFor(loan, '2026-11'), 1783333);
-assert.strictEqual(D.amountFor(loan, '2026-12'), 1700000);
-assert.strictEqual(D.amountFor(loan, '2027-01'), 1616667);
-assert.strictEqual(D.principalAt(loan, '2027-01'), 97000000);
-assert.strictEqual(D.occurrences([loan], '2050-01').length, 0, 'a repaid loan stops appearing');
-const loanOver = { ...loan, override: { '2026-12': 9000000 } };
-assert.strictEqual(D.amountFor(loanOver, '2026-12'), 9000000, 'an override beats the loan schedule');
-
-// ---- plan money stays an asset until it is spent ----
-const plan = [
-  entry({ id: 'p', type: 'plan', label: 'Quỹ đi chơi', amount: 6000000, date: '2026-10-07' }),
-  entry({ id: 'i2', type: 'in', amount: 15000000, date: '2026-10-01' }),
-];
-let s = D.monthSummary(plan, { '2026-10': 5000000 }, '2026-10');
-assert.strictEqual(s.outflow, 0, 'an unspent plan is not an expense');
-assert.strictEqual(s.net, 15000000);
-assert.strictEqual(s.reserve, 6000000);
-assert.strictEqual(s.rest, 4000000, 'net - reserve - living');
-assert.strictEqual(D.reservedFund(plan, '2026-10').total, 6000000);
-assert.strictEqual(D.reservedFund(plan, '2026-09').total, 0, 'not counted before its month');
-plan[0].doneIn = ['2026-10'];
-s = D.monthSummary(plan, { '2026-10': 5000000 }, '2026-10');
-assert.strictEqual(s.outflow, 6000000, 'once spent it becomes an expense');
-assert.strictEqual(s.reserve, 0);
-assert.strictEqual(s.rest, 4000000, 'rest is unchanged: it only moved between buckets');
-assert.strictEqual(D.reservedFund(plan, '2026-10').total, 0);
-const saving = [entry({ id: 'm', type: 'plan', amount: 2000000, date: '2026-08-05', repeat: true, doneIn: ['2026-09'] })];
-assert.strictEqual(D.reservedFund(saving, '2026-10').total, 4000000, 'two unspent months of a monthly fund');
-
-// ---- carried-forward settings ----
-assert.strictEqual(D.livingFor({ '2026-08': 7, '2026-10': 9 }, '2026-09'), 7);
-assert.strictEqual(D.livingFor({ '2026-08': 7, '2026-10': 9 }, '2026-12'), 9);
-assert.strictEqual(D.livingFor({}, '2026-12'), 0);
-assert.deepStrictEqual(D.allocationsFor({ '2026-08': { a: 1 } }, '2026-10'), { a: 1 });
-
-// ---- daily series from a real opening balance ----
-const flow = [
-  entry({ id: 'a', type: 'out', label: 'Nhà', amount: 1200000, date: '2026-11-01', repeat: true }),
-  entry({ id: 'b', type: 'out', label: 'Lãi', amount: 5197260, date: '2026-11-08', repeat: true }),
-  entry({ id: 'c', type: 'in', label: 'Lương', amount: 17948375, date: '2026-11-09', repeat: true }),
-];
-const pts = D.series(flow, '2026-10-22', 31, 3512377);
-assert.strictEqual(pts.length, 31);
-assert.strictEqual(pts[0].iso, '2026-10-22');
-assert.strictEqual(pts[0].bal, 3512377, 'day one starts at the opening balance');
-const low = D.lowestOf(pts);
-assert.strictEqual(low.iso, '2026-11-08');
-assert.strictEqual(low.trough, 3512377 - 1200000 - 5197260);
-assert.strictEqual(low.trough < 0, true);
-const after = pts.find(p => p.iso === '2026-11-09');
-assert.strictEqual(after.bal, low.trough + 17948375, 'the salary lands the next day');
-const risks = D.riskDays(pts, 3);
-assert.strictEqual(risks.length, 2, 'the series spans two calendar months');
-assert.strictEqual(risks[0].iso, '2026-11-08', 'the worst month comes first');
-
-// same day: the outflow is applied before the inflow
-const sameDay = D.series(
-  [entry({ id: 'd1', type: 'out', amount: 1000, date: '2026-10-22' }), entry({ id: 'd2', type: 'in', amount: 1000, date: '2026-10-22' })],
-  '2026-10-22', 1, 0);
-assert.strictEqual(sameDay[0].trough, -1000);
-assert.strictEqual(sameDay[0].bal, 0);
-
-// living spreads evenly across the month when asked for
-const withLiving = D.series([], '2026-11-01', 30, 3000000, { '2026-11': 3000000 });
-assert.strictEqual(Math.round(withLiving[29].bal), 0, 'a full month of living drains the opening balance');
-assert.strictEqual(D.series([], '2026-11-01', 30, 3000000)[29].bal, 3000000, 'living is opt-in');
-
-// a day with nothing still reports no rows
-assert.deepStrictEqual(D.dayRows(flow, '2026-11-03'), []);
-assert.strictEqual(D.dayRows(flow, '2026-11-08').length, 1);
-
-// ---- net worth ----
-assert.deepStrictEqual(D.netWorth([
-  { kind: 'asset', type: 'cash', balance: 20416226 },
-  { kind: 'asset', type: 'bank', balance: 58200000 },
-  { kind: 'asset', type: 'invest', balance: 300000000 },
-  { kind: 'debt', type: 'debt', balance: 408300000 },
-]), { assets: 378616226, debts: 408300000, net: -29683774, liquid: 78616226 });
-
-// ---- migration ----
-const v1 = D.migrate({
-  transactions: [{ id: 't', type: 'income', label: 'Lương', amount: 5, date: '2026-10-01' }],
-  plan: { month: '2026-11', incomes: [], expenses: [{ id: 'p', label: 'Nhà', amount: 3, date: '2026-11-03' }], livingBudget: 8 },
+// ---- the example frame from the mockup ----
+const state = D.migrate({
+  version: 2,
+  openings: { '2026-11': 5000000 },
+  living: { '2026-11': 8000000 },
+  items: [
+    { id: 'luong', kind: 'in', label: 'Lương', amount: 32000000, day: 5 },
+    { id: 'nha', kind: 'debt', label: 'Trả góp nhà', amount: 8200000, day: 5 },
+    { id: 'the', kind: 'debt', label: 'Thẻ tín dụng', amount: 2300000, day: 20, until: '2027-06' },
+    { id: 'cua', kind: 'fixed', label: 'Nhà cửa', amount: 1200000, day: 1 },
+    { id: 'hoc', kind: 'fixed', label: 'Học phí', amount: 3500000, day: 5 },
+    { id: 'dien', kind: 'fixed', label: 'Điện, nước', amount: 1500000, day: 12 },
+    { id: 'xang', kind: 'fixed', label: 'Xăng xe', amount: 1000000, day: 0 },
+    { id: 'bh', kind: 'once', label: 'Bảo hiểm xe', amount: 2000000, date: '2027-01-15', sign: -1 },
+  ],
 });
-assert.strictEqual(v1.entries.length, 2);
-assert.deepStrictEqual(v1.entries[0].doneIn, ['2026-10'], 'past transactions arrive already done');
-assert.deepStrictEqual(v1.entries[1].doneIn, []);
-assert.strictEqual(v1.living['2026-11'], 8);
 
-const v2 = D.migrate({ entries: [{ id: 'k', type: 'plan', label: 'Quỹ', amount: 100, date: '2026-10-01' }], living: { '2026-10': 5 } });
-assert.strictEqual(v2.entries[0].type, 'plan');
-assert.deepStrictEqual(v2.entries[0].skip, []);
-assert.deepStrictEqual(v2.entries[0].override, {});
-assert.strictEqual(v2.entries[0].loan, null);
-assert.strictEqual(v2.living['2026-10'], 5);
-assert.deepStrictEqual(D.migrate(null).entries, []);
-assert.strictEqual(D.migrate({ entries: [{ id: 'bad', date: 'nope' }] }).entries.length, 0, 'invalid dates are dropped');
+const nov = D.month(state, '2026-11');
+assert.strictEqual(nov.opening, 5000000);
+assert.ok(nov.openingTyped);
+assert.strictEqual(nov.inflow, 32000000);
+assert.strictEqual(nov.debt, 10500000);
+assert.strictEqual(nov.fixed, 7200000);
+assert.strictEqual(nov.living, 8000000);
+assert.strictEqual(nov.float, 11300000, 'free float = opening + in − debt − fixed − living');
 
-// ---- a repeating entry can have a last instalment ----
-const ending = [entry({ id: 'u', type: 'out', amount: 1326051, date: '2026-11-14', repeat: true, until: '2028-02' })];
-assert.strictEqual(D.occurrences(ending, '2028-02').length, 1, 'the final month still bills');
-assert.strictEqual(D.occurrences(ending, '2028-03').length, 0, 'and nothing after it');
-assert.strictEqual(D.occurrences([entry({ id: 'f', type: 'out', amount: 1, date: '2026-11-01', repeat: true })], '2099-01').length, 1,
-  'without an end date a flat repeat runs forever');
+// next month opens with this month's free float, living carries forward
+const dec = D.month(state, '2026-12');
+assert.strictEqual(dec.opening, 11300000);
+assert.ok(!dec.openingTyped);
+assert.strictEqual(dec.living, 8000000);
+assert.strictEqual(dec.float, 17600000);
 
-// ---- Tech 1: principal instalment plus interest on the declining balance ----
-// Verified against the real October payment: 5.000.000 + 15tr x 16%/12 = 5.200.000
-const tech1 = entry({ id: 'T1', type: 'out', label: 'Tech 1', amount: 0, date: '2026-11-07', repeat: true,
-  loan: { principal: 10000000, rate: 16, amortize: 5000000, withPrincipal: true } });
-assert.strictEqual(D.amountFor(tech1, '2026-11'), 5133333);
-assert.strictEqual(D.amountFor(tech1, '2026-12'), 5066667);
-assert.strictEqual(D.occurrences([tech1], '2026-12').length, 1, 'December is the maturity month');
-assert.strictEqual(D.occurrences([tech1], '2027-01').length, 0, 'the loan ends by itself once the principal is gone');
-// interest only: the same loan without the principal instalment
-const interestOnly = { ...tech1, loan: { ...tech1.loan, withPrincipal: false } };
-assert.strictEqual(D.amountFor(interestOnly, '2026-11'), 133333);
-// a last instalment smaller than the usual one is capped at the remaining principal
-const tail = entry({ id: 'T3', type: 'out', amount: 0, date: '2026-11-01', repeat: true,
-  loan: { principal: 7000000, rate: 0, amortize: 5000000, withPrincipal: true } });
-assert.strictEqual(D.amountFor(tail, '2026-11'), 5000000);
-assert.strictEqual(D.amountFor(tail, '2026-12'), 2000000, 'the tail pays only what is left');
+// a typed opening overrides the rolled one
+const typed = { ...state, openings: { ...state.openings, '2026-12': 9000000 } };
+assert.strictEqual(D.month(typed, '2026-12').float, 15300000);
 
-// an interest-only loan never clears itself, so it needs an end month
-const revolving = entry({ id: 'T2', type: 'out', amount: 0, date: '2026-11-07', repeat: true,
-  loan: { principal: 30000000, rate: 16, amortize: 0, withPrincipal: false }, until: '2026-12' });
-assert.strictEqual(D.amountFor(revolving, '2027-06'), 400000, 'interest stays flat');
-assert.strictEqual(D.occurrences([revolving], '2027-06').length, 0, 'but the end month stops it');
+// one-off items land only in their month
+assert.strictEqual(D.month(state, '2027-01').once, -2000000);
+assert.strictEqual(D.month(state, '2027-02').once, 0);
 
-console.log('Rootcash domain tests: PASS');
+// a debt ends after its last month
+assert.strictEqual(D.month(state, '2027-06').counts.debt, 2);
+assert.strictEqual(D.month(state, '2027-07').counts.debt, 1);
+
+// no opening typed yet: starts from zero
+assert.strictEqual(D.month(state, '2026-10').opening, 0);
+assert.ok(D.month(state, '2026-10').openingNone);
+
+// ---- daily series ----
+const s = D.days(state, '2026-11');
+assert.strictEqual(s.days.length, 30);
+assert.strictEqual(Math.round(s.spread), 300000, 'living + spread fixed costs per day');
+assert.strictEqual(Math.round(s.days[29].end), 11300000, 'last day ends at the free float');
+assert.strictEqual(s.days[4].rows.length, 3, 'three items on the 5th');
+assert.strictEqual(Math.round(s.days[3].end), 2600000);
+assert.strictEqual(Math.round(s.days[4].end), 22600000);
+assert.strictEqual(D.lowest(s.days).day, 4);
+
+// day 31 lands on the last day of a short month
+const late = D.migrate({ version: 2, items: [{ kind: 'fixed', label: 'x', amount: 1, day: 31 }] });
+assert.strictEqual(D.rowsFor(late.items, '2026-02')[0].day, 28);
+
+// ---- converting the earlier Rootcash data ----
+const old = D.migrate({
+  entries: [
+    { id: 'a', type: 'in', label: 'Lương', amount: 20000000, date: '2026-10-09', repeat: true },
+    { id: 'b', type: 'out', label: 'Trả góp xe', amount: 3000000, date: '2026-10-15', repeat: true, until: '2027-03' },
+    { id: 'c', type: 'out', label: 'Internet', amount: 300000, date: '2026-10-02', repeat: true },
+    { id: 'd', type: 'out', label: 'Sửa xe', amount: 800000, date: '2026-11-20' },
+    { id: 'e', type: 'out', label: 'Vay', amount: 0, date: '2026-01-05', repeat: true,
+      loan: { principal: 12000000, rate: 12, amortize: 1000000, withPrincipal: true } },
+  ],
+  living: { '2026-10': 7000000 },
+  accounts: [
+    { kind: 'asset', type: 'bank', balance: 4000000 },
+    { kind: 'asset', type: 'cash', balance: 500000 },
+    { kind: 'asset', type: 'invest', balance: 99000000 },
+    { kind: 'debt', type: 'debt', balance: 1000000 },
+  ],
+}, '2026-11-02');
+assert.deepStrictEqual(old.items.map(i => i.kind), ['in', 'debt', 'fixed', 'once', 'debt']);
+assert.strictEqual(old.items[0].day, 9);
+assert.strictEqual(old.items[1].until, '2027-03');
+assert.strictEqual(old.items[3].sign, -1);
+assert.strictEqual(old.items[4].amount, 1020000, 'loan billed at this month: 2tr left × 1% + 1tr principal');
+assert.strictEqual(old.openings['2026-11'], 4500000, 'cash + bank becomes this month opening');
+assert.strictEqual(old.living['2026-10'], 7000000);
+
+// junk is dropped
+assert.strictEqual(D.migrate({ version: 2, items: [{ kind: 'nope' }, { kind: 'once', date: 'x' }] }).items.length, 0);
+assert.deepStrictEqual(D.migrate(null).items, []);
+
+console.log('domain tests passed');

@@ -3,13 +3,12 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Domain = api;
 })(typeof self !== 'undefined' ? self : this, function () {
+  // ---------- dates ----------
   const pad = n => String(n).padStart(2, '0');
   const monthOf = iso => String(iso).slice(0, 7);
   const dayOf = iso => Number(String(iso).slice(8, 10));
   const daysIn = key => { const [y, m] = key.split('-').map(Number); return new Date(y, m, 0).getDate(); };
-  const dateIn = (key, day) => `${key}-${pad(Math.min(Math.max(day, 1), daysIn(key)))}`;
   const isoOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const dateOf = iso => new Date(`${iso}T00:00:00`);
   const shiftMonth = (key, delta) => {
     const [y, m] = key.split('-').map(Number);
     const d = new Date(y, m - 1 + delta, 1);
@@ -19,196 +18,175 @@
     const [ya, ma] = a.split('-').map(Number), [yb, mb] = b.split('-').map(Number);
     return (yb - ya) * 12 + (mb - ma);
   };
-  const roundUp = (value, step = 500000) => value <= 0 ? 0 : Math.ceil(value / step) * step;
+  const weekday = (key, day) => { const [y, m] = key.split('-').map(Number); return new Date(y, m - 1, day).getDay(); };
 
-  // An entry is 'in', 'out', or 'plan'. Plan money is set aside: it stays an asset
-  // and is not an expense until that month is marked done.
-  const kindOf = row => row.type === 'plan' ? (row.done ? 'out' : 'plan') : row.type;
-  const sum = (rows, kind) => rows.filter(r => kindOf(r) === kind).reduce((t, r) => t + Number(r.amount || 0), 0);
+  // ---------- the frame ----------
+  // Items are the fixed skeleton of every month. Everything counts as spent:
+  //   in    — income, a day each month
+  //   debt  — a repayment schedule, a day each month
+  //   fixed — a fixed cost, a day each month or spread evenly (day 0)
+  //   once  — one date, money in (sign 1) or out (sign -1)
+  const KINDS = ['in', 'debt', 'fixed', 'once'];
 
-  // Principal still owed on a loan-backed entry at the start of a month.
-  function principalAt(entry, key) {
-    if (!entry.loan) return 0;
-    const k = Math.max(0, monthsBetween(monthOf(entry.date), key));
-    return Math.max(0, Number(entry.loan.principal || 0) - k * Number(entry.loan.amortize || 0));
-  }
+  const activeIn = (item, key) => {
+    if (item.kind === 'once') return monthOf(item.date) === key;
+    if (item.from && key < item.from) return false;
+    if (item.until && key > item.until) return false;
+    return true;
+  };
 
-  // What a repeating entry costs in a given month:
-  //   an override wins, then a loan schedule (declining balance), then the flat amount.
-  function amountFor(entry, key) {
-    const over = entry.override && entry.override[key];
-    if (over != null && over !== '') return Math.round(Number(over)) || 0;
-    if (entry.loan) {
-      const left = principalAt(entry, key);
-      const interest = left * Number(entry.loan.rate || 0) / 1200;
-      const due = entry.loan.withPrincipal ? Math.min(Number(entry.loan.amortize || 0), left) : 0;
-      return Math.round(interest + due);
-    }
-    return Math.round(Number(entry.amount || 0)) || 0;
-  }
-
-
-  // Every entry that lands in a month, with amount and done flag resolved.
-  function occurrences(entries, key) {
-    const rows = [];
-    (entries || []).forEach(e => {
-      const start = monthOf(e.date);
-      if (e.repeat ? start > key : start !== key) return;
-      if (e.repeat && e.until && key > e.until) return; // last instalment has passed
-      if ((e.skip || []).includes(key)) return;
-      const amount = amountFor(e, key);
-      if (e.repeat && e.loan && Number(e.loan.amortize) > 0 && principalAt(e, key) <= 0) return; // fully repaid
-      rows.push({
-        id: e.id, type: e.type, label: e.label, repeat: !!e.repeat, loan: e.loan || null, until: e.until || null,
-        amount, month: key,
-        date: e.repeat ? dateIn(key, dayOf(e.date)) : e.date,
-        done: (e.doneIn || []).includes(key),
-      });
+  // Signed money of every item landing in a month: + comes in, − goes out.
+  function rowsFor(items, key) {
+    const last = daysIn(key);
+    return (items || []).filter(i => activeIn(i, key)).map(i => {
+      const amount = Math.round(Number(i.amount) || 0);
+      const sign = i.kind === 'in' ? 1 : i.kind === 'once' ? (i.sign === 1 ? 1 : -1) : -1;
+      const day = i.kind === 'once' ? dayOf(i.date) : Number(i.day) || 0;
+      return { id: i.id, kind: i.kind, label: i.label, value: sign * amount, day: day ? Math.min(day, last) : 0 };
     });
-    return rows.sort((a, b) =>
-      a.date.localeCompare(b.date) ||
-      (kindOf(a) === kindOf(b) ? 0 : kindOf(a) === 'out' ? -1 : 1) ||
-      String(a.label).localeCompare(String(b.label), 'vi'));
   }
-
-  const dayRows = (entries, iso) => occurrences(entries, monthOf(iso)).filter(r => r.date === iso);
 
   // Unset months inherit the most recent earlier value.
   function carried(map, key) {
-    if (map && key in map) return map[key];
+    if (map && key in map) return Number(map[key]) || 0;
     const earlier = Object.keys(map || {}).filter(k => k < key).sort();
-    return earlier.length ? map[earlier[earlier.length - 1]] : undefined;
-  }
-  const livingFor = (living, key) => Number(carried(living, key)) || 0;
-  const allocationsFor = (allocations, key) => ({ ...(carried(allocations, key) || {}) });
-
-  // Daily running balance from a real opening balance. Within a day, outflows are
-  // applied before inflows, so the low point stays conservative.
-  function series(entries, startIso, days, opening, living) {
-    const out = [];
-    const cache = {};
-    let bal = Number(opening) || 0;
-    const start = dateOf(startIso);
-    for (let i = 0; i < days; i++) {
-      const d = new Date(start.getTime() + i * 86400000);
-      const iso = isoOf(d), key = monthOf(iso);
-      if (!cache[key]) cache[key] = occurrences(entries, key);
-      const rows = cache[key].filter(r => r.date === iso);
-      const inflow = sum(rows, 'in');
-      const outflow = sum(rows, 'out') + (living ? livingFor(living, key) / daysIn(key) : 0);
-      bal -= outflow;
-      const trough = bal;
-      bal += inflow;
-      out.push({ iso, date: d, day: d.getDate(), month: key, bal, trough, in: inflow, out: outflow, rows });
-    }
-    return out;
+    return earlier.length ? Number(map[earlier[earlier.length - 1]]) || 0 : 0;
   }
 
-  const lowestOf = points => points.reduce((a, p) => p.trough < a.trough ? p : a, points[0]);
-
-  // Lowest balance of each calendar month in a series, worst first.
-  function riskDays(points, limit = 3) {
-    const groups = {};
-    points.forEach(p => { (groups[p.month] = groups[p.month] || []).push(p); });
-    return Object.values(groups).map(lowestOf).sort((a, b) => a.trough - b.trough).slice(0, limit);
-  }
-
-  function monthSummary(entries, living, key) {
-    const rows = occurrences(entries, key);
-    const inflow = sum(rows, 'in'), outflow = sum(rows, 'out'), reserve = sum(rows, 'plan');
-    const amount = livingFor(living, key);
-    return {
-      key, rows, inflow, outflow, reserve,
-      net: inflow - outflow,
-      living: amount,
-      rest: inflow - outflow - reserve - amount,
-      done: rows.filter(r => r.done).length,
+  // Free float of a month from a given opening balance.
+  function summarize(state, key, opening) {
+    const rows = rowsFor(state.items, key);
+    const total = kind => rows.filter(r => r.kind === kind).reduce((t, r) => t + r.value, 0);
+    const count = kind => rows.filter(r => r.kind === kind).length;
+    const living = carried(state.living, key);
+    const once = total('once');
+    const s = {
+      key, rows, opening, living,
+      inflow: total('in'), debt: -total('debt'), fixed: -total('fixed'), once,
+      counts: { in: count('in'), debt: count('debt'), fixed: count('fixed'), once: count('once') },
     };
+    s.float = opening + s.inflow - s.debt - s.fixed + once - living;
+    return s;
   }
 
-  // Plan money set aside up to and including a month, not yet spent.
-  function reservedFund(entries, key) {
-    const items = [];
-    (entries || []).filter(e => e.type === 'plan').forEach(e => {
-      const start = monthOf(e.date);
-      if (start > key) return;
-      const months = [];
-      for (let m = start; m <= key && months.length < 600; m = shiftMonth(m, 1)) {
-        if (e.until && m > e.until) break;
-        if (!(e.skip || []).includes(m)) months.push(m);
-        if (!e.repeat) break;
-      }
-      const pending = months.filter(m => !(e.doneIn || []).includes(m));
-      if (!pending.length) return;
-      const amount = pending.reduce((t, m) => t + amountFor(e, m), 0);
-      items.push({ id: e.id, label: e.label, month: pending[pending.length - 1], count: pending.length, amount });
-    });
-    return { items, total: items.reduce((t, i) => t + i.amount, 0) };
+  // A month's opening is what you typed, or else the free float of the month
+  // before, rolled forward from the last month you typed one.
+  function openingFor(state, key) {
+    const openings = state.openings || {};
+    if (key in openings) return { value: Number(openings[key]) || 0, typed: true };
+    const earlier = Object.keys(openings).filter(k => k < key).sort();
+    if (!earlier.length) return { value: 0, typed: false, none: true };
+    let k = earlier[earlier.length - 1];
+    let bal = Number(openings[k]) || 0;
+    for (let guard = 0; k < key && guard < 1200; guard++) {
+      bal = summarize(state, k, bal).float;
+      k = shiftMonth(k, 1);
+      if (k in openings && k < key) bal = Number(openings[k]) || 0;
+    }
+    return { value: bal, typed: false };
   }
 
-  const LIQUID = ['cash', 'bank'];
-  function netWorth(accounts) {
-    const total = test => (accounts || []).filter(test).reduce((t, a) => t + Number(a.balance || 0), 0);
-    const assets = total(a => a.kind === 'asset');
-    const debts = total(a => a.kind === 'debt');
-    return { assets, debts, net: assets - debts, liquid: total(a => a.kind === 'asset' && LIQUID.includes(a.type)) };
+  function month(state, key) {
+    const open = openingFor(state, key);
+    return { ...summarize(state, key, open.value), openingTyped: open.typed, openingNone: !!open.none };
   }
 
-  // Accepts the first release (rootcash:v1) and every later shape of this one.
-  function migrate(raw) {
-    const state = { entries: [], living: {}, buckets: [], allocations: {}, accounts: [], history: {} };
+  // End-of-day balance for every day of a month. Living and spread fixed costs
+  // leave a little every day; dated items move money on their day.
+  function days(state, key) {
+    const m = month(state, key);
+    const n = daysIn(key);
+    const spreadTotal = m.living + m.rows.filter(r => r.day === 0).reduce((t, r) => t - r.value, 0);
+    const spread = spreadTotal / n;
+    const out = [];
+    let bal = m.opening;
+    for (let d = 1; d <= n; d++) {
+      const rows = m.rows.filter(r => r.day === d);
+      const start = bal;
+      bal = bal + rows.reduce((t, r) => t + r.value, 0) - spread;
+      out.push({ day: d, start, end: bal, rows, spread, weekday: weekday(key, d) });
+    }
+    return { month: m, days: out, spread };
+  }
+
+  const lowest = list => list.reduce((a, p) => p.end < a.end ? p : a, list[0]);
+
+  // ---------- storage shape ----------
+  const validMonth = v => /^\d{4}-\d{2}$/.test(String(v || ''));
+  const validDate = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+  const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  const numMap = map => {
+    const out = {};
+    Object.keys(map || {}).forEach(k => { if (validMonth(k)) out[k] = Math.round(Number(map[k]) || 0); });
+    return out;
+  };
+
+  function cleanItem(i) {
+    if (!i || !KINDS.includes(i.kind)) return null;
+    const item = { id: i.id || uid(), kind: i.kind, label: String(i.label || ''), amount: Math.max(0, Math.round(Number(i.amount) || 0)) };
+    if (i.kind === 'once') {
+      if (!validDate(i.date)) return null;
+      item.date = i.date;
+      item.sign = i.sign === 1 ? 1 : -1;
+    } else {
+      item.day = Math.max(0, Math.min(31, Math.round(Number(i.day) || 0)));
+      if (i.kind !== 'fixed' && !item.day) item.day = 1;
+      item.from = validMonth(i.from) ? i.from : null;
+      item.until = validMonth(i.until) ? i.until : null;
+    }
+    return item;
+  }
+
+  // Reads this shape, or converts the earlier Rootcash data (entries + accounts).
+  // `today` is an ISO date, used only to place a converted opening balance.
+  function migrate(raw, today) {
+    const state = { version: 2, openings: {}, living: {}, items: [], backupAt: null };
     if (!raw || typeof raw !== 'object') return state;
-    const valid = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
 
-    if (Array.isArray(raw.entries)) {
-      state.entries = raw.entries.filter(e => e && valid(e.date)).map(e => ({
-        id: e.id || `e_${Math.random().toString(36).slice(2, 9)}`,
-        type: ['in', 'out', 'plan'].includes(e.type) ? e.type : 'out',
-        label: String(e.label || ''),
-        amount: Math.round(Number(e.amount)) || 0,
-        date: e.date,
-        repeat: !!e.repeat,
-        until: /^\d{4}-\d{2}$/.test(String(e.until || '')) ? e.until : null,
-        doneIn: Array.isArray(e.doneIn) ? e.doneIn.slice() : [],
-        skip: Array.isArray(e.skip) ? e.skip.slice() : [],
-        override: e.override && typeof e.override === 'object' ? { ...e.override } : {},
-        loan: e.loan && typeof e.loan === 'object' ? {
-          principal: Number(e.loan.principal) || 0,
-          rate: Number(e.loan.rate) || 0,
-          amortize: Number(e.loan.amortize) || 0,
-          withPrincipal: !!e.loan.withPrincipal,
-        } : null,
-      }));
-      state.living = raw.living && typeof raw.living === 'object' ? { ...raw.living } : {};
-      state.buckets = Array.isArray(raw.buckets) ? raw.buckets.slice() : [];
-      state.allocations = raw.allocations && typeof raw.allocations === 'object' ? { ...raw.allocations } : {};
-      state.accounts = Array.isArray(raw.accounts) ? raw.accounts.slice() : [];
-      state.history = raw.history && typeof raw.history === 'object' ? { ...raw.history } : {};
+    if (raw.version === 2) {
+      state.openings = numMap(raw.openings);
+      state.living = numMap(raw.living);
+      state.items = (Array.isArray(raw.items) ? raw.items : []).map(cleanItem).filter(Boolean);
+      state.backupAt = validDate(String(raw.backupAt || '').slice(0, 10)) ? raw.backupAt : null;
       return state;
     }
 
-    // first release: transactions plus a single next-month plan
-    const add = (item, type, done) => {
-      if (!item || !valid(item.date)) return;
-      state.entries.push({
-        id: item.id || `m_${state.entries.length}`,
-        type, label: String(item.label || ''), amount: Math.round(Number(item.amount)) || 0,
-        date: item.date, repeat: false, until: null, doneIn: done ? [monthOf(item.date)] : [],
-        skip: [], override: {}, loan: null,
+    const key = monthOf(today || isoOf(new Date()));
+    if (Array.isArray(raw.entries)) {
+      raw.entries.forEach(e => {
+        if (!e || !validDate(e.date)) return;
+        const label = String(e.label || '');
+        if (!e.repeat) {
+          state.items.push(cleanItem({ kind: 'once', label, amount: e.amount, date: e.date, sign: e.type === 'in' ? 1 : -1 }));
+          return;
+        }
+        let amount = Number(e.amount) || 0;
+        if (e.loan) {
+          const left = Math.max(0, Number(e.loan.principal || 0) - Math.max(0, monthsBetween(monthOf(e.date), key)) * Number(e.loan.amortize || 0));
+          amount = left * Number(e.loan.rate || 0) / 1200 + (e.loan.withPrincipal ? Math.min(Number(e.loan.amortize || 0), left) : 0);
+        }
+        const kind = e.type === 'in' ? 'in'
+          : (e.loan || /góp|vay|nợ|thẻ|lãi/i.test(label)) ? 'debt' : 'fixed';
+        state.items.push(cleanItem({
+          kind, label, amount, day: dayOf(e.date), from: monthOf(e.date),
+          until: validMonth(e.until) ? e.until : null,
+        }));
       });
-    };
-    (raw.transactions || []).forEach(t => add(t, t && t.type === 'income' ? 'in' : 'out', true));
-    ((raw.plan && raw.plan.incomes) || []).forEach(t => add(t, 'in', false));
-    ((raw.plan && raw.plan.expenses) || []).forEach(t => add(t, 'out', false));
-    const living = Number(raw.plan && raw.plan.livingBudget);
-    if (raw.plan && raw.plan.month && living > 0) state.living[raw.plan.month] = living;
+      state.items = state.items.filter(Boolean);
+    }
+    if (raw.living && typeof raw.living === 'object') state.living = numMap(raw.living);
+    if (Array.isArray(raw.accounts)) {
+      const liquid = raw.accounts
+        .filter(a => a && a.kind === 'asset' && ['cash', 'bank'].includes(a.type))
+        .reduce((t, a) => t + (Number(a.balance) || 0), 0);
+      if (liquid) state.openings[key] = Math.round(liquid);
+    }
     return state;
   }
 
   return {
-    pad, monthOf, dayOf, daysIn, dateIn, isoOf, dateOf, shiftMonth, monthsBetween, roundUp,
-    kindOf, sum, amountFor, principalAt, occurrences, dayRows,
-    livingFor, allocationsFor, series, lowestOf, riskDays,
-    monthSummary, reservedFund, netWorth, migrate,
+    pad, monthOf, dayOf, daysIn, isoOf, shiftMonth, monthsBetween, weekday,
+    KINDS, activeIn, rowsFor, carried, summarize, openingFor, month, days, lowest,
+    cleanItem, migrate, uid,
   };
 });

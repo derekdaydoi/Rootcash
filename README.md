@@ -1,29 +1,31 @@
 # Rootcash
 
-Personal Treasury — *Kiểm soát dòng tiền. Tự do trong phần còn lại.*
+Bảng tính dòng tiền bỏ túi — một khung cố định, vài con số thay đổi, ra free float của tháng.
 
 Web app (PWA) local-first, không backend. Dữ liệu chỉ nằm trên thiết bị.
 
+## Cách nghĩ
+
+Không ghi từng khoản chi. Dựng một **khung** cho mọi tháng, rồi chỉ chỉnh vài biến số:
+
+```
+Free float = Số dư đầu tháng + Thu − Lịch trả nợ − Chi cố định ± Khoản một lần − Sinh hoạt
+```
+
+Mọi khoản trong khung đều tính là đã chi — không có công tắc "kế hoạch / đã chi".
+Free float của tháng này là số dư đầu tháng sau, trừ khi bạn nhập số dư thật.
+
 ## Màn hình
 
-- **Tổng quan** — số dư hôm nay (tiền mặt + ngân hàng), biểu đồ dòng tiền 3 hoặc 6 tháng theo mốc giao dịch, ngày cần chuẩn bị tiền, tóm tắt sinh hoạt.
-- **Dòng tiền** — timeline liên tục (cuộn là sang tháng sau) hoặc lịch tháng. Mỗi ngày có tổng thu, tổng chi, số dư cuối ngày. Lọc Thu / Chi / Kế hoạch.
-- **Tài sản** — tài sản ròng, nợ, thanh khoản, quỹ kế hoạch. Số dư do người dùng tự nhập, độc lập với dòng tiền.
-- **Sinh hoạt** — quỹ sinh hoạt từng tháng, chia theo mục tự đặt.
+- **Tháng** — free float ở trên cùng. Nhập số dư đầu tháng và sinh hoạt bằng số; phép tính cập nhật ngay.
+- **Dòng tiền** — biểu đồ cột: mỗi cột là số dư cuối ngày, dưới trục là từng khoản chi xếp chồng (một ngày nhiều khoản vẫn thấy rõ). Chạm một cột để xem chi tiết ngày đó.
+- **Khung** — chi cố định (theo ngày hoặc trải đều), sinh hoạt, thu, lịch trả nợ (có tháng kết thúc), khoản một lần. Sửa số tiền trực tiếp trong danh sách. Sao lưu / khôi phục ở cuối trang.
 
-## Ba loại khoản
+Sinh hoạt và chi cố định "trải đều" được trừ đều mỗi ngày trong biểu đồ.
 
-| Loại | Trong dòng tiền | Trong tài sản |
-|---|---|---|
-| Thu | cộng vào | — |
-| Chi | trừ ra | — |
-| Kế hoạch | chưa trừ cho tới khi bật "Đã chi" | nằm trong Quỹ kế hoạch |
+## Dữ liệu
 
-Khoản lặp hàng tháng có thể **sửa riêng một tháng**, **bỏ qua một tháng**, hoặc **tự tính theo dư nợ**: lãi = gốc còn lại × lãi suất năm ÷ 12, gốc giảm dần theo số trả mỗi tháng.
-
-## Dòng tiền và buffer
-
-Biểu đồ chạy từ số dư thật (tiền mặt + ngân hàng), nhảy đúng ngày có tiền ra vào. Trong cùng một ngày, chi được tính trước thu, nên điểm thấp nhất là mức thận trọng. Sinh hoạt mặc định không nằm trong biểu đồ; bật công tắc *Gồm sinh hoạt* để trừ đều theo ngày.
+Lưu ở `localStorage` khoá `rootcash:v2`. Lần đầu mở, dữ liệu bản cũ (khoá `rootcash`) được chuyển sang khung mới; bản cũ được giữ nguyên, không xoá.
 
 ## Chạy local
 
@@ -36,4 +38,4 @@ node tests/domain.test.js
 
 Mở bản deploy bằng Safari trên iPhone → Share → Add to Home Screen.
 
-© Copyright from Derekdaydoi
+© derekdaydoi
