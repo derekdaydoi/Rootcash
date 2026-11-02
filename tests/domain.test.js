@@ -33,16 +33,20 @@ assert.strictEqual(nov.fixed, 7200000);
 assert.strictEqual(nov.living, 8000000);
 assert.strictEqual(nov.float, 11300000, 'free float = opening + in − debt − fixed − living');
 
-// next month opens with this month's free float, living carries forward
+// each month stands alone: no typed opening means 0, living carries forward
 const dec = D.month(state, '2026-12');
-assert.strictEqual(dec.opening, 11300000);
+assert.strictEqual(dec.opening, 0);
 assert.ok(!dec.openingTyped);
 assert.strictEqual(dec.living, 8000000);
-assert.strictEqual(dec.float, 17600000);
+assert.strictEqual(dec.float, 6300000);
 
-// a typed opening overrides the rolled one
 const typed = { ...state, openings: { ...state.openings, '2026-12': 9000000 } };
 assert.strictEqual(D.month(typed, '2026-12').float, 15300000);
+assert.strictEqual(D.month(typed, '2026-11').float, 11300000, 'December does not change November');
+
+// the chosen month survives a save/load round trip
+assert.strictEqual(D.migrate({ ...state, active: '2026-12' }).active, '2026-12');
+assert.strictEqual(D.migrate({ ...state, active: 'junk' }).active, null);
 
 // one-off items land only in their month
 assert.strictEqual(D.month(state, '2027-01').once, -2000000);
@@ -54,7 +58,6 @@ assert.strictEqual(D.month(state, '2027-07').counts.debt, 1);
 
 // no opening typed yet: starts from zero
 assert.strictEqual(D.month(state, '2026-10').opening, 0);
-assert.ok(D.month(state, '2026-10').openingNone);
 
 // ---- daily series ----
 const s = D.days(state, '2026-11');

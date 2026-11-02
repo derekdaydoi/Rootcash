@@ -69,26 +69,11 @@
     return s;
   }
 
-  // A month's opening is what you typed, or else the free float of the month
-  // before, rolled forward from the last month you typed one.
-  function openingFor(state, key) {
-    const openings = state.openings || {};
-    if (key in openings) return { value: Number(openings[key]) || 0, typed: true };
-    const earlier = Object.keys(openings).filter(k => k < key).sort();
-    if (!earlier.length) return { value: 0, typed: false, none: true };
-    let k = earlier[earlier.length - 1];
-    let bal = Number(openings[k]) || 0;
-    for (let guard = 0; k < key && guard < 1200; guard++) {
-      bal = summarize(state, k, bal).float;
-      k = shiftMonth(k, 1);
-      if (k in openings && k < key) bal = Number(openings[k]) || 0;
-    }
-    return { value: bal, typed: false };
-  }
-
+  // Each month stands alone: its opening is only what you typed for it.
   function month(state, key) {
-    const open = openingFor(state, key);
-    return { ...summarize(state, key, open.value), openingTyped: open.typed, openingNone: !!open.none };
+    const openings = state.openings || {};
+    const typed = key in openings;
+    return { ...summarize(state, key, typed ? Number(openings[key]) || 0 : 0), openingTyped: typed };
   }
 
   // End-of-day balance for every day of a month. Living and spread fixed costs
@@ -140,7 +125,7 @@
   // Reads this shape, or converts the earlier Rootcash data (entries + accounts).
   // `today` is an ISO date, used only to place a converted opening balance.
   function migrate(raw, today) {
-    const state = { version: 2, openings: {}, living: {}, items: [], backupAt: null };
+    const state = { version: 2, active: null, openings: {}, living: {}, items: [], backupAt: null };
     if (!raw || typeof raw !== 'object') return state;
 
     if (raw.version === 2) {
@@ -148,6 +133,7 @@
       state.living = numMap(raw.living);
       state.items = (Array.isArray(raw.items) ? raw.items : []).map(cleanItem).filter(Boolean);
       state.backupAt = validDate(String(raw.backupAt || '').slice(0, 10)) ? raw.backupAt : null;
+      state.active = validMonth(raw.active) ? raw.active : null;
       return state;
     }
 
@@ -186,7 +172,7 @@
 
   return {
     pad, monthOf, dayOf, daysIn, isoOf, shiftMonth, monthsBetween, weekday,
-    KINDS, activeIn, rowsFor, carried, summarize, openingFor, month, days, lowest,
+    KINDS, activeIn, rowsFor, carried, summarize, month, days, lowest,
     cleanItem, migrate, uid,
   };
 });

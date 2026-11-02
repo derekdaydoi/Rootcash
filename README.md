@@ -13,13 +13,16 @@ Free float = Số dư đầu tháng + Thu − Lịch trả nợ − Chi cố đ�
 ```
 
 Mọi khoản trong khung đều tính là đã chi — không có công tắc "kế hoạch / đã chi".
-Free float của tháng này là số dư đầu tháng sau, trừ khi bạn nhập số dư thật.
+
+App quản lý **một tháng tại một thời điểm**: chạm tên tháng ở đầu trang để chọn tháng đang quản lý,
+cả ba tab nhảy theo. Mỗi tháng tính độc lập — số dư đầu tháng do bạn nhập, không cộng dồn từ tháng trước.
+Khoản không rơi vào tháng đang chọn (chưa tới hạn, đã kết thúc, thuộc tháng khác) được bôi mờ trong Khung.
 
 ## Màn hình
 
 - **Tháng** — free float ở trên cùng. Nhập số dư đầu tháng và sinh hoạt bằng số; phép tính cập nhật ngay.
 - **Dòng tiền** — biểu đồ cột: mỗi cột là số dư cuối ngày, dưới trục là từng khoản chi xếp chồng (một ngày nhiều khoản vẫn thấy rõ). Chạm một cột để xem chi tiết ngày đó.
-- **Khung** — chi cố định (theo ngày hoặc trải đều), sinh hoạt, thu, lịch trả nợ (có tháng kết thúc), khoản một lần. Sửa số tiền trực tiếp trong danh sách. Sao lưu / khôi phục ở cuối trang.
+- **Khung** — chi cố định (theo ngày hoặc trải đều), sinh hoạt, thu, lịch trả nợ (có tháng kết thúc), khoản một lần. Sửa số tiền trực tiếp trong danh sách; thu màu xanh, chi màu đỏ. Sao lưu / khôi phục / xoá toàn bộ ở cuối trang.
 
 Sinh hoạt và chi cố định "trải đều" được trừ đều mỗi ngày trong biểu đồ.
 
